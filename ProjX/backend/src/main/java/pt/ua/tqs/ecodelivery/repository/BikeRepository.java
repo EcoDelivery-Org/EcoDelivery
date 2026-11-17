@@ -1,0 +1,10 @@
+package pt.ua.tqs.ecodelivery.repository;
+
+import pt.ua.tqs.ecodelivery.model.Bike;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+/** Data access for Bike. Query methods are added with the stories that need them. */
+@Repository
+public interface BikeRepository extends JpaRepository<Bike, Long> {
+}
