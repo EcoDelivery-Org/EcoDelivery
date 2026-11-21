@@ -25,12 +25,27 @@ public class Hub {
 
     private int capacity;
 
+    private double boundaryRadiusMeters = 50.0;
+
     public Hub() {
         // required by JPA
     }
 
+    public Hub(String name, String address, double latitude, double longitude, int capacity, double boundaryRadiusMeters) {
+        this.name = name;
+        this.address = address;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        this.capacity = capacity;
+        this.boundaryRadiusMeters = boundaryRadiusMeters;
+    }
+
     public Long getId() {
         return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public String getName() {
@@ -71,5 +86,13 @@ public class Hub {
 
     public void setCapacity(int capacity) {
         this.capacity = capacity;
+    }
+
+    public double getBoundaryRadiusMeters() {
+        return boundaryRadiusMeters;
+    }
+
+    public void setBoundaryRadiusMeters(double boundaryRadiusMeters) {
+        this.boundaryRadiusMeters = boundaryRadiusMeters;
     }
 }
