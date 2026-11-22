@@ -1,12 +1,14 @@
 package pt.ua.tqs.ecodelivery.model;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-/** A courier who books cargo e-bikes to deliver parcels. */
+/** A courier who books cargo e-bikes to deliver parcels, on behalf of a registered company. */
 @Entity
 @Table(name = "couriers")
 public class Courier {
@@ -20,6 +22,10 @@ public class Courier {
     private String email;
 
     private String phone;
+
+    /** The registered company the courier works for; {@code null} if none (not eligible, BR7/DEC-8). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Company company;
 
     public Courier() {
         // required by JPA
@@ -51,5 +57,13 @@ public class Courier {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public Company getCompany() {
+        return company;
+    }
+
+    public void setCompany(Company company) {
+        this.company = company;
     }
 }

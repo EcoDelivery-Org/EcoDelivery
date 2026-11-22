@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SessionService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ecodelivery</a> &gt; <a href="index.source.html" class="el_package">pt.ua.tqs.ecodelivery.reservation</a> &gt; <span class="el_source">SessionService.java</span></div><h1>SessionService.java</h1><pre class="source lang-java linenums">package pt.ua.tqs.ecodelivery.reservation;
+
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Objects;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
+import pt.ua.tqs.ecodelivery.exception.DepositFailedException;
+import pt.ua.tqs.ecodelivery.exception.ResourceNotFoundException;
+import pt.ua.tqs.ecodelivery.model.Bike;
+import pt.ua.tqs.ecodelivery.model.BikeStatus;
+import pt.ua.tqs.ecodelivery.model.Courier;
+import pt.ua.tqs.ecodelivery.model.Hub;
+import pt.ua.tqs.ecodelivery.model.Payment;
+import pt.ua.tqs.ecodelivery.model.PaymentStatus;
+import pt.ua.tqs.ecodelivery.model.Reservation;
+import pt.ua.tqs.ecodelivery.model.ReservationStatus;
+import pt.ua.tqs.ecodelivery.payment.BillingService;
+import pt.ua.tqs.ecodelivery.policy.PolicyService;
+import pt.ua.tqs.ecodelivery.port.HubPort;
+import pt.ua.tqs.ecodelivery.repository.BikeRepository;
+import pt.ua.tqs.ecodelivery.repository.CourierRepository;
+import pt.ua.tqs.ecodelivery.repository.ReservationRepository;
+
+/** Business logic for reservations and usage sessions, from booking to the end of use. */
+@Service
+public class SessionService {
+
+    /** DEC-4: reservations in these states count as active. */
+<span class="fc" id="L32">    private static final List&lt;ReservationStatus&gt; ACTIVE_STATUSES =</span>
+<span class="fc" id="L33">            List.of(ReservationStatus.RESERVED, ReservationStatus.IN_USE);</span>
+
+    private final ReservationRepository reservationRepository;
+    private final CourierRepository courierRepository;
+    private final BikeRepository bikeRepository;
+    private final PolicyService policyService;
+    private final BillingService billingService;
+    private final HubPort hubPort;
+    private final Clock clock;
+
+    public SessionService(ReservationRepository reservationRepository, CourierRepository courierRepository,
+                          BikeRepository bikeRepository, PolicyService policyService,
+<span class="fc" id="L45">                          BillingService billingService, HubPort hubPort, Clock clock) {</span>
+<span class="fc" id="L46">        this.reservationRepository = reservationRepository;</span>
+<span class="fc" id="L47">        this.courierRepository = courierRepository;</span>
+<span class="fc" id="L48">        this.bikeRepository = bikeRepository;</span>
+<span class="fc" id="L49">        this.policyService = policyService;</span>
+<span class="fc" id="L50">        this.billingService = billingService;</span>
+<span class="fc" id="L51">        this.hubPort = hubPort;</span>
+<span class="fc" id="L52">        this.clock = clock;</span>
+<span class="fc" id="L53">    }</span>
+
+    /** Reserves a bike for a courier, for a period. */
+    public Reservation reserve(Long courierId, Long bikeId, LocalDateTime start, LocalDateTime end) {
+<span class="nc" id="L57">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /**
+     * US 10, path B: starts using a bike immediately, without a prior reservation.
+     *
+     * &lt;p&gt;All checks run first; then the deposit is charged (BR8); only if it succeeds does the
+     * session start and the hub release the bike. A failed deposit is not rolled back, so it stays
+     * recorded, and the attempt is kept as a CANCELLED reservation.
+     */
+    @Transactional(noRollbackFor = DepositFailedException.class)
+    public Reservation startImmediateUse(Long courierId, Long bikeId) {
+<span class="fc" id="L69">        Courier courier = courierRepository.findById(courierId)</span>
+<span class="fc" id="L70">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Courier &quot; + courierId + &quot; not found&quot;));</span>
+<span class="fc" id="L71">        Bike bike = bikeRepository.findById(bikeId)</span>
+<span class="fc" id="L72">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Bike &quot; + bikeId + &quot; not found&quot;));</span>
+
+<span class="fc" id="L74">        checkCourierIsEligible(courier);</span>
+<span class="fc" id="L75">        long active = reservationRepository.countByCourierIdAndStatusIn(courierId, ACTIVE_STATUSES);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (!policyService.canCourierReserve(courierId, active)) {</span>
+<span class="fc" id="L77">            throw new BusinessRuleException(&quot;Courier &quot; + courierId + &quot; already has an active reservation or session&quot;);</span>
+        }
+<span class="fc" id="L79">        checkBikeCanBeUsed(bike);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (bike.getStatus() != BikeStatus.AVAILABLE) {</span>
+<span class="fc" id="L81">            throw new BusinessRuleException(&quot;Bike &quot; + bikeId + &quot; is not available (&quot; + bike.getStatus() + &quot;)&quot;);</span>
+        }
+
+<span class="fc" id="L84">        LocalDateTime now = LocalDateTime.now(clock);</span>
+<span class="fc" id="L85">        LocalDateTime plannedEnd = now.plus(policyService.getMaxReservationDuration());</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (reservationRepository.existsConflictingReservation(bikeId, now, plannedEnd)) {</span>
+<span class="fc" id="L87">            throw new BusinessRuleException(&quot;Bike &quot; + bikeId + &quot; is reserved before &quot; + plannedEnd);</span>
+        }
+
+<span class="fc" id="L90">        Reservation session = new Reservation();</span>
+<span class="fc" id="L91">        session.setCourier(courier);</span>
+<span class="fc" id="L92">        session.setBike(bike);</span>
+<span class="fc" id="L93">        session.setStartHub(bike.getCurrentHub());</span>
+<span class="fc" id="L94">        session.setPlannedStart(now);</span>
+<span class="fc" id="L95">        session.setPlannedEnd(plannedEnd);</span>
+<span class="fc" id="L96">        session.setStatus(ReservationStatus.RESERVED);</span>
+<span class="fc" id="L97">        session = reservationRepository.save(session);</span>
+
+<span class="fc" id="L99">        return start(session, bike, now, true);</span>
+    }
+
+    /**
+     * US 10, path A: the courier starts the usage session of his reservation.
+     *
+     * &lt;p&gt;All checks run first; then the deposit is charged (BR8); only if it succeeds does the
+     * session start and the hub release the bike. A failed deposit is not rolled back, so it stays
+     * recorded; the reservation itself is left unchanged.
+     */
+    @Transactional(noRollbackFor = DepositFailedException.class)
+    public Reservation startSession(Long reservationId, Long courierId) {
+<span class="fc" id="L111">        Reservation reservation = reservationRepository.findById(reservationId)</span>
+<span class="fc" id="L112">                .orElseThrow(() -&gt; new ResourceNotFoundException(&quot;Reservation &quot; + reservationId + &quot; not found&quot;));</span>
+
+<span class="fc" id="L114">        Courier courier = reservation.getCourier();</span>
+<span class="pc bpc" id="L115" title="1 of 4 branches missed.">        if (courier == null || !Objects.equals(courier.getId(), courierId)) {</span>
+<span class="fc" id="L116">            throw new BusinessRuleException(&quot;Reservation &quot; + reservationId + &quot; does not belong to courier &quot; + courierId);</span>
+        }
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (reservation.getStatus() != ReservationStatus.RESERVED) {</span>
+<span class="fc" id="L119">            throw new BusinessRuleException(&quot;Reservation &quot; + reservationId + &quot; cannot be started (&quot; + reservation.getStatus() + &quot;)&quot;);</span>
+        }
+<span class="fc" id="L121">        LocalDateTime now = LocalDateTime.now(clock);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        if (!policyService.isWithinStartWindow(reservation.getPlannedStart(), now)) {</span>
+<span class="fc" id="L123">            throw new BusinessRuleException(&quot;Reservation &quot; + reservationId + &quot; can only be started around &quot; + reservation.getPlannedStart());</span>
+        }
+<span class="fc" id="L125">        checkCourierIsEligible(courier);</span>
+
+<span class="fc" id="L127">        Bike bike = reservation.getBike();</span>
+<span class="fc" id="L128">        checkBikeCanBeUsed(bike);</span>
+<span class="fc bfc" id="L129" title="All 4 branches covered.">        if (bike.getStatus() != BikeStatus.AVAILABLE &amp;&amp; bike.getStatus() != BikeStatus.RESERVED) {</span>
+<span class="fc" id="L130">            throw new BusinessRuleException(&quot;Bike &quot; + bike.getId() + &quot; is not available (&quot; + bike.getStatus() + &quot;)&quot;);</span>
+        }
+
+<span class="fc" id="L133">        return start(reservation, bike, now, false);</span>
+    }
+
+    /** Ends a session at a hub: bike becomes AVAILABLE there, overtime is billed. */
+    public Reservation endSession(Long reservationId, Long endHubId) {
+<span class="nc" id="L138">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Cancels a reservation: bike becomes AVAILABLE, deposit is refunded. */
+    public Reservation cancel(Long reservationId) {
+<span class="nc" id="L143">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public Reservation getReservation(Long reservationId) {
+<span class="nc" id="L147">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public List&lt;Reservation&gt; findByCourier(Long courierId) {
+<span class="nc" id="L151">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** BR7/DEC-8: the courier must belong to a registered company. */
+    private void checkCourierIsEligible(Courier courier) {
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (!policyService.isCourierEligible(courier)) {</span>
+<span class="fc" id="L157">            throw new BusinessRuleException(&quot;Courier &quot; + courier.getId() + &quot; is not eligible to use the fleet&quot;);</span>
+        }
+<span class="fc" id="L159">    }</span>
+
+    /** BR2, BR1 and PROP-2: the bike must be in service, charged enough and parked at a hub. */
+    private void checkBikeCanBeUsed(Bike bike) {
+<span class="fc bfc" id="L163" title="All 6 branches covered.">        if (!bike.isActive() || bike.getStatus() == BikeStatus.MAINTENANCE || bike.getStatus() == BikeStatus.RETIRED) {</span>
+<span class="fc" id="L164">            throw new BusinessRuleException(&quot;Bike &quot; + bike.getId() + &quot; is out of service&quot;);</span>
+        }
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        if (!policyService.isBatterySufficient(bike.getBatteryLevel())) {</span>
+<span class="fc" id="L167">            throw new BusinessRuleException(&quot;Bike &quot; + bike.getId() + &quot; has &quot; + bike.getBatteryLevel()</span>
+<span class="fc" id="L168">                    + &quot; % battery; the minimum is &quot; + policyService.getMinBatteryLevel() + &quot; %&quot;);</span>
+        }
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (bike.getCurrentHub() == null) {</span>
+<span class="fc" id="L171">            throw new BusinessRuleException(&quot;Bike &quot; + bike.getId() + &quot; is not parked at a hub&quot;);</span>
+        }
+<span class="fc" id="L173">    }</span>
+
+    /**
+     * Deposit (BR8), then the state changes, then the hub releases the bike.
+     *
+     * @param immediateUse whether the reservation was created just now for an immediate use; if its
+     *                     deposit fails, that attempt is kept as CANCELLED so it blocks nothing
+     */
+    private Reservation start(Reservation reservation, Bike bike, LocalDateTime now, boolean immediateUse) {
+<span class="fc bfc" id="L182" title="All 2 branches covered.">        if (policyService.isDepositRequired()) {</span>
+<span class="fc" id="L183">            Payment deposit = billingService.chargeDeposit(reservation);</span>
+<span class="pc bpc" id="L184" title="1 of 4 branches missed.">            if (deposit == null || deposit.getStatus() != PaymentStatus.SUCCEEDED) {</span>
+<span class="fc bfc" id="L185" title="All 2 branches covered.">                if (immediateUse) {</span>
+<span class="fc" id="L186">                    reservation.setStatus(ReservationStatus.CANCELLED);</span>
+<span class="fc" id="L187">                    reservationRepository.save(reservation);</span>
+                }
+<span class="fc" id="L189">                throw new DepositFailedException(&quot;The deposit for reservation &quot; + reservation.getId() + &quot; was refused&quot;);</span>
+            }
+        }
+
+<span class="fc" id="L193">        Hub hub = bike.getCurrentHub();</span>
+<span class="fc" id="L194">        reservation.setStatus(ReservationStatus.IN_USE);</span>
+<span class="fc" id="L195">        reservation.setActualStart(now);</span>
+<span class="fc" id="L196">        bike.setStatus(BikeStatus.IN_USE);</span>
+<span class="fc" id="L197">        bike.setCurrentHub(null);</span>
+<span class="fc" id="L198">        Reservation started = reservationRepository.save(reservation);</span>
+<span class="fc" id="L199">        bikeRepository.save(bike);</span>
+
+<span class="fc" id="L201">        hubPort.releaseBike(hub.getId(), bike.getId());</span>
+<span class="fc" id="L202">        return started;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

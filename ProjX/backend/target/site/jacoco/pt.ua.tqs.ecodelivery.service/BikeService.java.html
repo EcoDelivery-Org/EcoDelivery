@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BikeService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ecodelivery</a> &gt; <a href="index.source.html" class="el_package">pt.ua.tqs.ecodelivery.service</a> &gt; <span class="el_source">BikeService.java</span></div><h1>BikeService.java</h1><pre class="source lang-java linenums">package pt.ua.tqs.ecodelivery.service;
+
+import java.util.List;
+import java.util.Map;
+import org.springframework.stereotype.Service;
+import pt.ua.tqs.ecodelivery.dto.BikeRequest;
+import pt.ua.tqs.ecodelivery.model.Bike;
+import pt.ua.tqs.ecodelivery.model.BikeEventType;
+import pt.ua.tqs.ecodelivery.model.BikeStatus;
+import pt.ua.tqs.ecodelivery.policy.PolicyService;
+import pt.ua.tqs.ecodelivery.repository.BikeEventRepository;
+import pt.ua.tqs.ecodelivery.repository.BikeRepository;
+import pt.ua.tqs.ecodelivery.repository.HubRepository;
+
+/** Business logic for the cargo e-bikes and their lifecycle. */
+@Service
+public class BikeService {
+
+    private final BikeRepository bikeRepository;
+    private final HubRepository hubRepository;
+    private final BikeEventRepository bikeEventRepository;
+    private final PolicyService policyService;
+
+    public BikeService(BikeRepository bikeRepository, HubRepository hubRepository,
+<span class="nc" id="L25">                       BikeEventRepository bikeEventRepository, PolicyService policyService) {</span>
+<span class="nc" id="L26">        this.bikeRepository = bikeRepository;</span>
+<span class="nc" id="L27">        this.hubRepository = hubRepository;</span>
+<span class="nc" id="L28">        this.bikeEventRepository = bikeEventRepository;</span>
+<span class="nc" id="L29">        this.policyService = policyService;</span>
+<span class="nc" id="L30">    }</span>
+
+    /** Registers a new bike at a hub. */
+    public Bike registerBike(BikeRequest request) {
+<span class="nc" id="L34">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Lists bikes, optionally filtered by hub and/or status. */
+    public List&lt;Bike&gt; findBikes(Long hubId, BikeStatus status) {
+<span class="nc" id="L39">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public Bike getBike(Long id) {
+<span class="nc" id="L43">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Changes the lifecycle status of a bike; only valid transitions are allowed. */
+    public Bike changeStatus(Long id, BikeStatus newStatus) {
+<span class="nc" id="L48">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Moves a bike to another hub, if the destination hub has capacity. */
+    public Bike moveToHub(Long bikeId, Long hubId) {
+<span class="nc" id="L53">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Activates a bike, making it part of the operating fleet. */
+    public Bike activate(Long bikeId) {
+<span class="nc" id="L58">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Deactivates a bike, taking it out of the operating fleet. */
+    public Bike deactivate(Long bikeId) {
+<span class="nc" id="L63">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Whether a bike can be reserved now (available, active, enough battery). */
+    public boolean isAvailableForReservation(Long bikeId) {
+<span class="nc" id="L68">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Number of bikes per status, for the operator dashboard. */
+    public Map&lt;BikeStatus, Long&gt; countByStatus() {
+<span class="nc" id="L73">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Records an entry in the bike's history. */
+    private void recordEvent(Bike bike, BikeEventType type, String details) {
+<span class="nc" id="L78">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
