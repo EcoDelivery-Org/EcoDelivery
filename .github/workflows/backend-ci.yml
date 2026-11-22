@@ -1,0 +1,43 @@
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    name: Build, test and analyse (backend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ProjX/backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full Git history: Sonar uses it to know which lines are new
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Cache SonarQube packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      # Every push and PR: compile, unit tests (Surefire), integration tests (Failsafe), JaCoCo report
+      - name: Build and test
+        run: mvn -B verify
+
+      # Only on PRs and on main (the free plan analyses PRs and the main branch)
+      - name: SonarQube Cloud analysis + quality gate
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.qualitygate.wait=true
