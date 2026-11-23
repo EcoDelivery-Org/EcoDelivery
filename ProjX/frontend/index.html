@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoDelivery - Fleet & Hub Inventory Management</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <span class="brand-icon">⚡🚲</span>
+        <div>
+          <h1>EcoDelivery</h1>
+          <span class="subtext">Fleet Operator Portal &bull; US01 Inventory</span>
+        </div>
+      </div>
+      <div class="system-status">
+        <span class="status-indicator" id="apiStatusDot"></span>
+        <span id="apiStatusText">Connecting...</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Stat Cards -->
+    <section class="stats-grid">
+      <div class="card stat-card">
+        <div class="stat-icon">🏢</div>
+        <div class="stat-info">
+          <span class="stat-value" id="statHubCount">0</span>
+          <span class="stat-label">Active Hubs</span>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">🚲</div>
+        <div class="stat-info">
+          <span class="stat-value" id="statBikeCount">0</span>
+          <span class="stat-label">Total E-Bikes</span>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+          <span class="stat-value" id="statAvailableBikes">0</span>
+          <span class="stat-label">Available for Delivery</span>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-info">
+          <span class="stat-value" id="statLogCount">0</span>
+          <span class="stat-label">Inventory Events</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Navigation Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="hubsTab">🏢 Hubs Management</button>
+      <button class="tab-btn" data-tab="bikesTab">🚲 E-Bikes Management</button>
+      <button class="tab-btn" data-tab="logsTab">📜 System Inventory Logs</button>
+      <button class="tab-btn" data-tab="finderTab">🔎 Hub Finder</button>
+    </div>
+
+    <!-- TAB 1: HUBS -->
+    <section id="hubsTab" class="tab-content active">
+      <div class="grid-2-cols">
+        <!-- Hub Form -->
+        <div class="card">
+          <h2>Provision New Hub</h2>
+          <p class="section-desc">Define geographic coordinates, boundary geofence, and maximum capacity.</p>
+          <form id="createHubForm">
+            <div class="form-group">
+              <label for="hubName">Hub Name *</label>
+              <input type="text" id="hubName" placeholder="e.g. Hub Rossio Centro" required>
+            </div>
+            <div class="form-group">
+              <label for="hubAddress">Physical Address *</label>
+              <input type="text" id="hubAddress" placeholder="e.g. Praça do Rossio, Aveiro" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="hubLat">Latitude</label>
+                <input type="number" id="hubLat" step="any" placeholder="40.6412">
+              </div>
+              <div class="form-group">
+                <label for="hubLon">Longitude</label>
+                <input type="number" id="hubLon" step="any" placeholder="-8.6536">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="hubRadius">Boundary Radius (m)</label>
+                <input type="number" id="hubRadius" value="50" min="10" max="1000" step="5">
+              </div>
+              <div class="form-group">
+                <label for="hubCapacity">Max Vehicle Capacity *</label>
+                <input type="number" id="hubCapacity" value="10" min="1" required>
+              </div>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btnSubmitHub">
+              <span>+ Provision Hub</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Hubs Table -->
+        <div class="card">
+          <div class="card-header-actions">
+            <h2>Configured Hubs</h2>
+            <button class="btn btn-sm btn-outline" onclick="loadHubs()">Refresh</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="hubsTable">
+              <thead>
+                <tr>
+                  <th>Hub</th>
+                  <th>Coordinates & Boundary</th>
+                  <th>Capacity</th>
+                  <th>Occupancy</th>
+                </tr>
+              </thead>
+              <tbody id="hubsTableBody">
+                <tr><td colspan="4" class="text-center text-muted">No hubs provisioned yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: BIKES -->
+    <section id="bikesTab" class="tab-content">
+      <div class="grid-2-cols">
+        <!-- Bike Form -->
+        <div class="card">
+          <h2>Register New E-Bike</h2>
+          <p class="section-desc">Add physical hardware assets with cargo capacity and initial hub station.</p>
+          <form id="createBikeForm">
+            <div class="form-group">
+              <label for="bikeSerial">Serial Number *</label>
+              <input type="text" id="bikeSerial" placeholder="e.g. EB-AVR-001" required>
+            </div>
+            <div class="form-group">
+              <label for="bikeModel">Hardware / Bike Model *</label>
+              <input type="text" id="bikeModel" placeholder="e.g. CargoMax HeavyCarrier 500" required>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="bikeCargo">Cargo Capacity (kg) *</label>
+                <input type="number" id="bikeCargo" step="0.5" value="50.0" min="1" required>
+              </div>
+              <div class="form-group">
+                <label for="bikeBattery">Initial Battery (%)</label>
+                <input type="number" id="bikeBattery" value="100" min="0" max="100">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="bikeHub">Initial Stationed Hub</label>
+              <select id="bikeHub">
+                <option value="">-- No Hub Assigned --</option>
+              </select>
+              <small class="help-text">Hubs at maximum capacity cannot accept new bikes.</small>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btnSubmitBike">
+              <span>+ Register E-Bike</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Bikes Table -->
+        <div class="card">
+          <div class="card-header-actions">
+            <h2>E-Bike Inventory</h2>
+            <button class="btn btn-sm btn-outline" onclick="loadBikes()">Refresh</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="bikesTable">
+              <thead>
+                <tr>
+                  <th>Serial / Model</th>
+                  <th>Cargo (kg)</th>
+                  <th>Battery</th>
+                  <th>Status</th>
+                  <th>Hub</th>
+                </tr>
+              </thead>
+              <tbody id="bikesTableBody">
+                <tr><td colspan="5" class="text-center text-muted">No e-bikes registered yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: LOGS -->
+    <section id="logsTab" class="tab-content">
+      <div class="card">
+        <div class="card-header-actions">
+          <div>
+            <h2>System Inventory Audit Logs</h2>
+            <p class="section-desc">Immutable real-time audit log of all provisioned hubs, assets, and operational events.</p>
+          </div>
+          <div class="filter-actions">
+            <select id="logTypeFilter" onchange="loadLogs()">
+              <option value="">All Asset Types</option>
+              <option value="HUB">Hubs Only</option>
+              <option value="E_BIKE">E-Bikes Only</option>
+            </select>
+            <button class="btn btn-sm btn-outline" onclick="loadLogs()">Refresh Logs</button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="logsTable">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Asset Type</th>
+                <th>Identifier</th>
+                <th>Action</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody">
+              <tr><td colspan="5" class="text-center text-muted">No inventory events recorded yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <!-- TAB 4: HUB FINDER (US08) -->
+    <section id="finderTab" class="tab-content">
+      <div class="grid-2-cols">
+        <div class="card">
+          <h2>Find Nearby Hubs</h2>
+          <p class="section-desc">Search hubs around an address and see how many e-bikes can be booked at each one.</p>
+          <form id="hubSearchForm">
+            <div class="form-group">
+              <label for="searchAddress">Address *</label>
+              <input type="text" id="searchAddress" placeholder="e.g. Universidade de Aveiro" required>
+            </div>
+            <div class="form-group">
+              <label for="searchRadius">Search Radius (km) *</label>
+              <input type="number" id="searchRadius" value="2" min="0.1" step="0.1" required>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btnSearchHubs">
+              <span>Search Hubs</span>
+            </button>
+          </form>
+          <div class="table-responsive">
+            <table class="data-table" id="nearbyHubsTable">
+              <thead>
+                <tr>
+                  <th>Hub</th>
+                  <th>Distance</th>
+                  <th>Available E-Bikes</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="nearbyHubsTableBody">
+                <tr><td colspan="4" class="text-center text-muted">Search an address to find nearby hubs.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 id="hubBikesTitle">Available E-Bikes</h2>
+          <p class="section-desc">E-bikes that can be booked now, highest battery first.</p>
+          <div class="table-responsive">
+            <table class="data-table" id="hubBikesTable">
+              <thead>
+                <tr>
+                  <th>Serial / Model</th>
+                  <th>Cargo (kg)</th>
+                  <th>Battery</th>
+                </tr>
+              </thead>
+              <tbody id="hubBikesTableBody">
+                <tr><td colspan="3" class="text-center text-muted">Select a hub to see its available e-bikes.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>EcoDelivery &bull; TQS 2026 &bull; US01 Hub & Vehicle Inventory Management</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

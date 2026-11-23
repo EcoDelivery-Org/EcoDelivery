@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:ecodelivery;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+ecodelivery:
+  geocoding:
+    base-url: https://nominatim.openstreetmap.org
+  policy:
+    min-battery-level: 20
+    max-reservation-duration: PT4H
+    deposit-amount: 10.00
+    overtime-rate-per-minute: 0.10
+    max-active-reservations-per-courier: 1

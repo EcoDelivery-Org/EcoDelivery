@@ -39,8 +39,23 @@ public class Bike {
         // required by JPA
     }
 
+    public Bike(String serialNumber, String model, double cargoCapacityKg, int batteryLevel,
+                BikeStatus status, boolean active, Hub currentHub) {
+        this.serialNumber = serialNumber;
+        this.model = model;
+        this.cargoCapacityKg = cargoCapacityKg;
+        this.batteryLevel = batteryLevel;
+        this.status = status;
+        this.active = active;
+        this.currentHub = currentHub;
+    }
+
     public Long getId() {
         return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public String getSerialNumber() {
