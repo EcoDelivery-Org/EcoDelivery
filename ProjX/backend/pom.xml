@@ -30,8 +30,14 @@
         <dependency-check.version>12.1.0</dependency-check.version>
 
         <!-- SonarQube (token and host URL are passed by CI, never committed) -->
-        <sonar.projectKey>ecodelivery</sonar.projectKey>
-        <sonar.projectName>ecodelivery</sonar.projectName>
+        <!-- <sonar.projectKey>ecodelivery</sonar.projectKey> -->
+        <!-- <sonar.projectName>ecodelivery</sonar.projectName> -->
+        <!-- <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths> -->
+
+        <!-- SonarQube Cloud (the token comes from CI, never committed) -->
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.organization>ecodelivery-org</sonar.organization>
+        <sonar.projectKey>EcoDelivery-Org_EcoDelivery</sonar.projectKey>
         <sonar.coverage.jacoco.xmlReportPaths>${project.build.directory}/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
