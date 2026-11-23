@@ -13,7 +13,7 @@ import pt.ua.tqs.ecodelivery.maintenance.MaintenanceService;
 import pt.ua.tqs.ecodelivery.service.BikeService;
 import pt.ua.tqs.ecodelivery.service.HubService;
 
-/** REST boundary for the Operator Dashboard: fleet overview and bike activation (Reserved for US02 & US06). */
+/** REST boundary for the Operator Dashboard: fleet overview and bike activation. */
 @RestController
 @RequestMapping("/api/operator")
 public class OperatorController {
@@ -28,25 +28,25 @@ public class OperatorController {
         this.maintenanceService = maintenanceService;
     }
 
-    /** GET /api/operator/fleet-status (Reserved for US06) */
+    /** GET /api/operator/fleet-status */
     @GetMapping("/fleet-status")
     public FleetStatusResponse getFleetStatus() {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    /** GET /api/operator/tickets/open (Reserved for US03 / US06) */
+    /** GET /api/operator/tickets/open */
     @GetMapping("/tickets/open")
     public List<TicketResponse> getOpenTickets() {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    /** POST /api/operator/bikes/{id}/activate (Reserved for US02) */
+    /** POST /api/operator/bikes/{id}/activate */
     @PostMapping("/bikes/{id}/activate")
     public BikeResponse activateBike(@PathVariable Long id) {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    /** POST /api/operator/bikes/{id}/deactivate (Reserved for US02) */
+    /** POST /api/operator/bikes/{id}/deactivate */
     @PostMapping("/bikes/{id}/deactivate")
     public BikeResponse deactivateBike(@PathVariable Long id) {
         throw new UnsupportedOperationException("Not implemented yet");

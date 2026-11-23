@@ -1,12 +1,3 @@
-# Maven build target
-target/
-**/target/
-
-# IDE files
-.idea/
-*.iml
-.vscode/
-
 # Compiled class file
 *.class
 
