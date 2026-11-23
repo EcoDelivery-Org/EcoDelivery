@@ -17,6 +17,7 @@ const toastEl = document.getElementById('toast');
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
   setupForms();
+  setupHubFinder();
   checkBackendHealth();
   refreshAll();
 
@@ -314,6 +315,93 @@ function setupForms() {
       btn.textContent = '+ Register E-Bike';
     }
   });
+}
+
+// ----------------- HUB FINDER (US08) -----------------
+function setupHubFinder() {
+  const searchForm = document.getElementById('hubSearchForm');
+  searchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSearchHubs');
+    btn.disabled = true;
+    btn.textContent = 'Searching...';
+
+    const address = document.getElementById('searchAddress').value.trim();
+    const radiusKm = document.getElementById('searchRadius').value;
+    const params = new URLSearchParams({ address, radiusKm });
+
+    try {
+      const res = await fetch(`${API_BASE}/hubs/nearby?${params}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || 'Failed to search hubs');
+      }
+      renderNearbyHubs(await res.json());
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Search Hubs';
+    }
+  });
+
+  document.getElementById('nearbyHubsTableBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('.view-hub-bikes');
+    if (btn) loadHubBikes(btn.dataset.hubId, btn.dataset.hubName);
+  });
+}
+
+function renderNearbyHubs(hubs) {
+  const tbody = document.getElementById('nearbyHubsTableBody');
+  if (!hubs || hubs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hubs found within this radius.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = hubs.map(h => `
+    <tr>
+      <td>
+        <strong>${escapeHtml(h.name)}</strong>
+        <div class="text-muted" style="font-size: 0.8rem;">${escapeHtml(h.address)}</div>
+      </td>
+      <td>${h.distanceKm.toFixed(2)} km</td>
+      <td>
+        <span class="badge ${h.availableBikes > 0 ? 'badge-success' : 'badge-danger'}">${h.availableBikes}</span>
+      </td>
+      <td>
+        <button class="btn btn-sm btn-outline view-hub-bikes" data-hub-id="${h.id}" data-hub-name="${escapeHtml(h.name)}">View E-Bikes</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadHubBikes(hubId, hubName) {
+  document.getElementById('hubBikesTitle').textContent = `Available E-Bikes at ${hubName}`;
+  const tbody = document.getElementById('hubBikesTableBody');
+  try {
+    const res = await fetch(`${API_BASE}/hubs/${hubId}/bikes`);
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || errorData.message || 'Failed to load available e-bikes');
+    }
+    const bikes = await res.json();
+    if (bikes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">No e-bikes can be booked at this hub right now.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = bikes.map(b => `
+      <tr>
+        <td>
+          <strong>${escapeHtml(b.serialNumber)}</strong>
+          <div class="text-muted" style="font-size: 0.8rem;">${escapeHtml(b.model)}</div>
+        </td>
+        <td>${b.cargoCapacityKg} kg</td>
+        <td><span style="font-weight: 600; color: var(--primary-dark);">⚡ ${b.batteryLevel}%</span></td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 // ----------------- TOAST -----------------
