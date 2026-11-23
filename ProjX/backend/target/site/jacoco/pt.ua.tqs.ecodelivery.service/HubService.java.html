@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HubService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ecodelivery</a> &gt; <a href="index.source.html" class="el_package">pt.ua.tqs.ecodelivery.service</a> &gt; <span class="el_source">HubService.java</span></div><h1>HubService.java</h1><pre class="source lang-java linenums">package pt.ua.tqs.ecodelivery.service;
+
+import java.util.List;
+import org.springframework.stereotype.Service;
+import pt.ua.tqs.ecodelivery.dto.HubRequest;
+import pt.ua.tqs.ecodelivery.model.Bike;
+import pt.ua.tqs.ecodelivery.model.Hub;
+import pt.ua.tqs.ecodelivery.port.GeocodingPort;
+import pt.ua.tqs.ecodelivery.repository.BikeRepository;
+import pt.ua.tqs.ecodelivery.repository.HubRepository;
+
+/** Business logic for hubs, including finding nearby hubs by address. */
+@Service
+public class HubService {
+
+    private final HubRepository hubRepository;
+    private final BikeRepository bikeRepository;
+    private final GeocodingPort geocodingPort;
+
+<span class="nc" id="L20">    public HubService(HubRepository hubRepository, BikeRepository bikeRepository, GeocodingPort geocodingPort) {</span>
+<span class="nc" id="L21">        this.hubRepository = hubRepository;</span>
+<span class="nc" id="L22">        this.bikeRepository = bikeRepository;</span>
+<span class="nc" id="L23">        this.geocodingPort = geocodingPort;</span>
+<span class="nc" id="L24">    }</span>
+
+    /** Creates a hub; its address is geocoded into coordinates. */
+    public Hub createHub(HubRequest request) {
+<span class="nc" id="L28">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public List&lt;Hub&gt; findAll() {
+<span class="nc" id="L32">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public Hub getHub(Long id) {
+<span class="nc" id="L36">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Bikes at the hub that can be reserved now. */
+    public List&lt;Bike&gt; getAvailableBikes(Long hubId) {
+<span class="nc" id="L41">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Hubs within a radius of an address (Hub Finder). */
+    public List&lt;Hub&gt; findNearbyHubs(String address, double radiusKm) {
+<span class="nc" id="L46">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Whether the hub can receive one more bike. */
+    public boolean hasCapacity(Long hubId) {
+<span class="nc" id="L51">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

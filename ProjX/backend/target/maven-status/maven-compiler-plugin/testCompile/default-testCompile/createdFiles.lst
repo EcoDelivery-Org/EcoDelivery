@@ -1,0 +1,5 @@
+pt/ua/tqs/ecodelivery/reservation/SessionServiceImmediateUseTest.class
+pt/ua/tqs/ecodelivery/reservation/SessionServiceStartReservationTest.class
+pt/ua/tqs/ecodelivery/policy/PolicyServiceTest.class
+pt/ua/tqs/ecodelivery/repository/ReservationRepositoryTest.class
+pt/ua/tqs/ecodelivery/reservation/StartFixtures.class

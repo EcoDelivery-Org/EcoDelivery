@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import pt.ua.tqs.ecodelivery.model.Courier;
 
 /**
  * Rules of use defined by the institutional client. The values are read from application.yml
@@ -18,21 +19,41 @@ public class PolicyService {
     private final BigDecimal depositAmount;
     private final BigDecimal overtimeRatePerMinute;
     private final int maxActiveReservationsPerCourier;
+    private final Duration startWindowTolerance;
 
     public PolicyService(@Value("${ecodelivery.policy.min-battery-level}") int minBatteryLevel,
                          @Value("${ecodelivery.policy.max-reservation-duration}") Duration maxReservationDuration,
                          @Value("${ecodelivery.policy.deposit-amount}") BigDecimal depositAmount,
                          @Value("${ecodelivery.policy.overtime-rate-per-minute}") BigDecimal overtimeRatePerMinute,
-                         @Value("${ecodelivery.policy.max-active-reservations-per-courier}") int maxActiveReservationsPerCourier) {
+                         @Value("${ecodelivery.policy.max-active-reservations-per-courier}") int maxActiveReservationsPerCourier,
+                         @Value("${ecodelivery.policy.start-window}") Duration startWindowTolerance) {
         this.minBatteryLevel = minBatteryLevel;
         this.maxReservationDuration = maxReservationDuration;
         this.depositAmount = depositAmount;
         this.overtimeRatePerMinute = overtimeRatePerMinute;
         this.maxActiveReservationsPerCourier = maxActiveReservationsPerCourier;
+        this.startWindowTolerance = startWindowTolerance;
     }
 
+    /** BR1: the battery must be at or above the minimum level. */
     public boolean isBatterySufficient(int batteryLevel) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return batteryLevel >= minBatteryLevel;
+    }
+
+    /** BR4/DEC-5: a reservation can be started from {@code tolerance} before to {@code tolerance} after its planned start. */
+    public boolean isWithinStartWindow(LocalDateTime plannedStart, LocalDateTime now) {
+        return !now.isBefore(plannedStart.minus(startWindowTolerance))
+                && !now.isAfter(plannedStart.plus(startWindowTolerance));
+    }
+
+    /** BR7/DEC-8: only couriers of a company registered in the platform are eligible. */
+    public boolean isCourierEligible(Courier courier) {
+        return courier != null && courier.getCompany() != null;
+    }
+
+    /** BR8: a deposit is required when the configured amount is positive. */
+    public boolean isDepositRequired() {
+        return depositAmount != null && depositAmount.signum() > 0;
     }
 
     /** Validates the start/end of a reservation (order, maximum duration). */
@@ -40,8 +61,9 @@ public class PolicyService {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
+    /** DEC-4: a courier can have at most {@code maxActiveReservationsPerCourier} active reservations or sessions. */
     public boolean canCourierReserve(Long courierId, long activeReservations) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return activeReservations < maxActiveReservationsPerCourier;
     }
 
     public int getMinBatteryLevel() {
@@ -62,5 +84,9 @@ public class PolicyService {
 
     public int getMaxActiveReservationsPerCourier() {
         return maxActiveReservationsPerCourier;
+    }
+
+    public Duration getStartWindowTolerance() {
+        return startWindowTolerance;
     }
 }

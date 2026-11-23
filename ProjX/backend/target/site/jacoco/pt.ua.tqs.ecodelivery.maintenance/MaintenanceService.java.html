@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MaintenanceService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ecodelivery</a> &gt; <a href="index.source.html" class="el_package">pt.ua.tqs.ecodelivery.maintenance</a> &gt; <span class="el_source">MaintenanceService.java</span></div><h1>MaintenanceService.java</h1><pre class="source lang-java linenums">package pt.ua.tqs.ecodelivery.maintenance;
+
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import pt.ua.tqs.ecodelivery.model.MaintenanceTicket;
+import pt.ua.tqs.ecodelivery.model.TicketPriority;
+import pt.ua.tqs.ecodelivery.model.TicketStatus;
+import pt.ua.tqs.ecodelivery.repository.MaintenanceTicketRepository;
+import pt.ua.tqs.ecodelivery.service.BikeService;
+
+/** Business logic for maintenance tickets and their SLA deadlines. */
+@Service
+public class MaintenanceService {
+
+    private final MaintenanceTicketRepository ticketRepository;
+    private final BikeService bikeService;
+    private final Clock clock;
+
+<span class="nc" id="L21">    public MaintenanceService(MaintenanceTicketRepository ticketRepository, BikeService bikeService, Clock clock) {</span>
+<span class="nc" id="L22">        this.ticketRepository = ticketRepository;</span>
+<span class="nc" id="L23">        this.bikeService = bikeService;</span>
+<span class="nc" id="L24">        this.clock = clock;</span>
+<span class="nc" id="L25">    }</span>
+
+    /** Opens a ticket for a bike: the bike goes to MAINTENANCE and the SLA deadline is set. */
+    public MaintenanceTicket openTicket(Long bikeId, String description, TicketPriority priority) {
+<span class="nc" id="L29">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public MaintenanceTicket assignTechnician(Long ticketId, String technician) {
+<span class="nc" id="L33">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Closes a ticket: the bike becomes AVAILABLE again. */
+    public MaintenanceTicket closeTicket(Long ticketId, String resolution) {
+<span class="nc" id="L38">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Lists tickets, optionally filtered by status. */
+    public List&lt;MaintenanceTicket&gt; findTickets(TicketStatus status) {
+<span class="nc" id="L43">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public List&lt;MaintenanceTicket&gt; findOpenTickets() {
+<span class="nc" id="L47">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Open tickets whose SLA deadline has passed. */
+    public List&lt;MaintenanceTicket&gt; findSlaBreaches() {
+<span class="nc" id="L52">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    private LocalDateTime calculateSlaDeadline(TicketPriority priority, LocalDateTime openedAt) {
+<span class="nc" id="L56">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>

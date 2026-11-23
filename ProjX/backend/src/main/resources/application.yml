@@ -30,3 +30,5 @@ ecodelivery:
     deposit-amount: 10.00
     overtime-rate-per-minute: 0.10
     max-active-reservations-per-courier: 1
+    # DEC-5: a reservation can be started from this long before to this long after its planned start
+    start-window: PT15M

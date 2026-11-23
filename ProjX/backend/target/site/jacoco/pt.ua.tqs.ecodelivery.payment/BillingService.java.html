@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BillingService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ecodelivery</a> &gt; <a href="index.source.html" class="el_package">pt.ua.tqs.ecodelivery.payment</a> &gt; <span class="el_source">BillingService.java</span></div><h1>BillingService.java</h1><pre class="source lang-java linenums">package pt.ua.tqs.ecodelivery.payment;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import pt.ua.tqs.ecodelivery.model.Payment;
+import pt.ua.tqs.ecodelivery.model.Reservation;
+import pt.ua.tqs.ecodelivery.policy.PolicyService;
+import pt.ua.tqs.ecodelivery.repository.PaymentRepository;
+
+/** Business logic for deposits, overtime charges and refunds. */
+@Service
+public class BillingService {
+
+    private final PaymentRepository paymentRepository;
+    private final PolicyService policyService;
+    private final Clock clock;
+
+<span class="nc" id="L21">    public BillingService(PaymentRepository paymentRepository, PolicyService policyService, Clock clock) {</span>
+<span class="nc" id="L22">        this.paymentRepository = paymentRepository;</span>
+<span class="nc" id="L23">        this.policyService = policyService;</span>
+<span class="nc" id="L24">        this.clock = clock;</span>
+<span class="nc" id="L25">    }</span>
+
+    public Payment chargeDeposit(Reservation reservation) {
+<span class="nc" id="L28">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public Payment refundDeposit(Reservation reservation) {
+<span class="nc" id="L32">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    /** Charges the time used beyond the reservation's planned end, if any. */
+    public Payment chargeOvertime(Reservation reservation) {
+<span class="nc" id="L37">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public BigDecimal calculateOvertimeFee(Duration overtime) {
+<span class="nc" id="L41">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public Payment getPayment(Long paymentId) {
+<span class="nc" id="L45">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+
+    public List&lt;Payment&gt; findByCourier(Long courierId) {
+<span class="nc" id="L49">        throw new UnsupportedOperationException(&quot;Not implemented yet&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.15.202606040825</span></div></body></html>
