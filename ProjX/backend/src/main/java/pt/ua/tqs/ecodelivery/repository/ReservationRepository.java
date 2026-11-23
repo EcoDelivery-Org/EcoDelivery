@@ -2,6 +2,7 @@ package pt.ua.tqs.ecodelivery.repository;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -32,4 +33,22 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     /** DEC-4: number of the courier's reservations in the given states. */
     long countByCourierIdAndStatusIn(Long courierId, Collection<ReservationStatus> statuses);
+
+    /**
+     * US09: Finds reservations in RESERVED state whose hold has expired (plannedEnd < now or
+     * plannedStart <= startCutoff).
+     */
+    @Query("""
+            select r from Reservation r
+            where r.status = pt.ua.tqs.ecodelivery.model.ReservationStatus.RESERVED
+              and (r.plannedEnd < :now or r.plannedStart <= :startCutoff)
+            """)
+    List<Reservation> findExpiredReservations(@Param("now") LocalDateTime now,
+                                              @Param("startCutoff") LocalDateTime startCutoff);
+
+    /** Finds all reservations belonging to a courier, ordered from newest to oldest. */
+    List<Reservation> findByCourierIdOrderByPlannedStartDesc(Long courierId);
+
+    /** Finds reservations for a bike in the given status. */
+    List<Reservation> findByBikeIdAndStatus(Long bikeId, ReservationStatus status);
 }

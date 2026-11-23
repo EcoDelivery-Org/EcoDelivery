@@ -7,6 +7,7 @@ const API_BASE = (window.location.protocol === 'file:')
 let hubsData = [];
 let bikesData = [];
 let logsData = [];
+let reservationsData = [];
 
 // DOM Elements
 const apiStatusDot = document.getElementById('apiStatusDot');
@@ -57,8 +58,9 @@ async function checkBackendHealth() {
 
 // Refresh all sections
 async function refreshAll() {
-  await Promise.all([loadHubs(), loadBikes(), loadLogs()]);
+  await Promise.all([loadHubs(), loadBikes(), loadLogs(), loadReservations()]);
   updateStats();
+  updateReservationBikeSelect();
 }
 
 // ----------------- HUBS (US01) -----------------
@@ -217,11 +219,128 @@ function renderLogsTable(logs) {
   }).join('');
 }
 
-// ----------------- STATS (Calculated from US01 inventory) -----------------
+// ----------------- RESERVATIONS & HOLDS (US09) -----------------
+async function loadReservations() {
+  try {
+    const courierIdInput = document.getElementById('reservationCourierId');
+    const courierId = courierIdInput ? courierIdInput.value || 1 : 1;
+    const res = await fetch(`${API_BASE}/reservations?courierId=${courierId}`);
+    if (res.ok) {
+      reservationsData = await res.json();
+    } else {
+      reservationsData = [];
+    }
+    renderReservationsTable(reservationsData);
+  } catch (err) {
+    console.error('Error loading reservations:', err);
+  }
+}
+
+function renderReservationsTable(reservations) {
+  const tbody = document.getElementById('reservationsTableBody');
+  if (!tbody) return;
+
+  if (!reservations || reservations.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No reservations placed yet.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = reservations.map(r => {
+    let statusClass = 'badge-neutral';
+    if (r.status === 'RESERVED') statusClass = 'badge-warning';
+    else if (r.status === 'IN_USE') statusClass = 'badge-info';
+    else if (r.status === 'COMPLETED') statusClass = 'badge-success';
+    else if (r.status === 'EXPIRED') statusClass = 'badge-danger';
+    else if (r.status === 'CANCELLED') statusClass = 'badge-danger';
+
+    const bike = bikesData.find(b => b.id === r.bikeId);
+    const bikeLabel = bike ? `${escapeHtml(bike.serialNumber)} (${escapeHtml(bike.model)})` : `Bike #${r.bikeId}`;
+
+    const startStr = r.plannedStart ? new Date(r.plannedStart).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '-';
+    const endStr = r.plannedEnd ? new Date(r.plannedEnd).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '-';
+
+    let actionBtn = '-';
+    if (r.status === 'RESERVED') {
+      actionBtn = `<button class="btn btn-sm btn-outline" style="color: var(--danger); border-color: var(--danger);" onclick="cancelHold(${r.id})">Cancel Hold</button>`;
+    }
+
+    return `
+      <tr>
+        <td><strong>#${r.id}</strong></td>
+        <td>${bikeLabel}</td>
+        <td>Courier #${r.courierId}</td>
+        <td style="font-size: 0.85rem;"><code>${startStr} &rarr; ${endStr}</code></td>
+        <td><span class="badge ${statusClass}">${r.status}</span></td>
+        <td>${actionBtn}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function updateReservationBikeSelect() {
+  const select = document.getElementById('reservationBikeId');
+  if (!select) return;
+
+  const currentVal = select.value;
+  const availableBikes = bikesData.filter(b => b.status === 'AVAILABLE');
+
+  select.innerHTML = '<option value="">-- Select an Available E-Bike --</option>' +
+    availableBikes.map(b => {
+      const hub = hubsData.find(h => h.id === b.hubId);
+      const hubName = hub ? hub.name : 'Unknown Hub';
+      return `<option value="${b.id}">
+        ${escapeHtml(b.serialNumber)} - ${escapeHtml(b.model)} (⚡ ${b.batteryLevel}%, at ${escapeHtml(hubName)})
+      </option>`;
+    }).join('');
+
+  if (currentVal && availableBikes.some(b => b.id.toString() === currentVal.toString())) {
+    select.value = currentVal;
+  }
+}
+
+async function cancelHold(reservationId) {
+  try {
+    const res = await fetch(`${API_BASE}/reservations/${reservationId}/cancel`, {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to cancel hold');
+    }
+    showToast(`Hold #${reservationId} cancelled. Vehicle returned to availability.`, 'success');
+    await refreshAll();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function triggerExpireHolds() {
+  try {
+    const res = await fetch(`${API_BASE}/reservations/expire`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to run expiration check');
+    const expiredList = await res.json();
+    if (expiredList.length > 0) {
+      showToast(`${expiredList.length} expired hold(s) processed. Vehicles returned to availability!`, 'info');
+    } else {
+      showToast('No holds currently expired.', 'info');
+    }
+    await refreshAll();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+// ----------------- STATS (Calculated from inventory & reservations) -----------------
 function updateStats() {
   document.getElementById('statHubCount').textContent = hubsData.length;
   document.getElementById('statBikeCount').textContent = bikesData.length;
   document.getElementById('statAvailableBikes').textContent = bikesData.filter(b => b.status === 'AVAILABLE').length;
+  const reservedEl = document.getElementById('statReservedBikes');
+  if (reservedEl) {
+    reservedEl.textContent = bikesData.filter(b => b.status === 'RESERVED').length;
+  }
   document.getElementById('statLogCount').textContent = logsData.length;
 }
 
@@ -314,6 +433,42 @@ function setupForms() {
       btn.textContent = '+ Register E-Bike';
     }
   });
+
+  // Create Reservation Form (US09)
+  const reservationForm = document.getElementById('createReservationForm');
+  if (reservationForm) {
+    reservationForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnSubmitReservation');
+      btn.disabled = true;
+      btn.textContent = 'Placing Hold...';
+
+      const courierId = parseInt(document.getElementById('reservationCourierId').value, 10);
+      const bikeId = parseInt(document.getElementById('reservationBikeId').value, 10);
+
+      try {
+        const res = await fetch(`${API_BASE}/reservations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courierId, bikeId })
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.detail || errorData.message || 'Failed to place reservation hold');
+        }
+
+        const data = await res.json();
+        showToast(`Vehicle hold #${data.id} placed for 15 minutes! Vehicle availability is guaranteed.`, 'success');
+        await refreshAll();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '⏱️ Place Temporal Hold (15 min)';
+      }
+    });
+  }
 }
 
 // ----------------- TOAST -----------------

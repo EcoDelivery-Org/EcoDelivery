@@ -167,4 +167,60 @@ class ReservationRepositoryTest {
 
         assertEquals(0, active);
     }
+
+    // ---------------------------------------------------------------- US09: expired holds and courier query
+
+    @Test
+    @DisplayName("US09: findExpiredReservations returns reservations in RESERVED state whose hold has expired")
+    void findExpiredReservations_findsOnlyExpiredHolds() {
+        // Expired hold: plannedEnd 10:15, now 10:30
+        Reservation expiredHold = new Reservation();
+        expiredHold.setCourier(courier);
+        expiredHold.setBike(bike);
+        expiredHold.setStartHub(hub);
+        expiredHold.setPlannedStart(DAY.plusHours(10));
+        expiredHold.setPlannedEnd(DAY.plusHours(10).plusMinutes(15));
+        expiredHold.setStatus(ReservationStatus.RESERVED);
+        entityManager.persistAndFlush(expiredHold);
+
+        // Active future hold: plannedEnd 11:15, now 10:30
+        Bike bike2 = newBike("ECO-0002");
+        Reservation activeHold = new Reservation();
+        activeHold.setCourier(courier);
+        activeHold.setBike(bike2);
+        activeHold.setStartHub(hub);
+        activeHold.setPlannedStart(DAY.plusHours(10).plusMinutes(30));
+        activeHold.setPlannedEnd(DAY.plusHours(11).plusMinutes(15));
+        activeHold.setStatus(ReservationStatus.RESERVED);
+        entityManager.persistAndFlush(activeHold);
+
+        // Already IN_USE session: plannedEnd 10:15, now 10:30 -> should NOT be returned by hold expiration
+        Bike bike3 = newBike("ECO-0003");
+        Reservation inUse = new Reservation();
+        inUse.setCourier(courier);
+        inUse.setBike(bike3);
+        inUse.setStartHub(hub);
+        inUse.setPlannedStart(DAY.plusHours(10));
+        inUse.setPlannedEnd(DAY.plusHours(10).plusMinutes(15));
+        inUse.setStatus(ReservationStatus.IN_USE);
+        entityManager.persistAndFlush(inUse);
+
+        LocalDateTime now = DAY.plusHours(10).plusMinutes(30);
+        LocalDateTime cutoff = now.minusMinutes(15);
+        List<Reservation> expired = reservationRepository.findExpiredReservations(now, cutoff);
+
+        assertEquals(1, expired.size());
+        assertEquals(expiredHold.getId(), expired.getFirst().getId());
+    }
+
+    @Test
+    @DisplayName("US09: findByCourierIdOrderByPlannedStartDesc returns reservations sorted descending")
+    void findByCourierId_returnsSorted() {
+        persistReservation(bike, 8, 10, ReservationStatus.COMPLETED);
+        persistReservation(bike, 12, 14, ReservationStatus.RESERVED);
+
+        List<Reservation> list = reservationRepository.findByCourierIdOrderByPlannedStartDesc(courier.getId());
+        assertEquals(2, list.size());
+        assertTrue(list.get(0).getPlannedStart().isAfter(list.get(1).getPlannedStart()));
+    }
 }

@@ -24,6 +24,7 @@ import pt.ua.tqs.ecodelivery.policy.PolicyService;
 import pt.ua.tqs.ecodelivery.repository.BikeEventRepository;
 import pt.ua.tqs.ecodelivery.repository.BikeRepository;
 import pt.ua.tqs.ecodelivery.repository.HubRepository;
+import pt.ua.tqs.ecodelivery.repository.ReservationRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -49,6 +50,9 @@ class BikeServiceTest {
     @Mock
     private InventoryLogService inventoryLogService;
 
+    @Mock
+    private ReservationRepository reservationRepository;
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-11-20T10:00:00Z"), ZoneId.of("UTC"));
 
     private BikeService bikeService;
@@ -59,7 +63,7 @@ class BikeServiceTest {
     @BeforeEach
     void setUp() {
         bikeService = new BikeService(bikeRepository, hubRepository, bikeEventRepository,
-                policyService, inventoryLogService, clock);
+                policyService, inventoryLogService, reservationRepository, clock);
 
         testHub = new Hub("Hub Central", "Av. Dr. Lourenço Peixinho", 40.6405, -8.6538, 5, 50.0);
         testHub.setId(10L);
@@ -166,5 +170,24 @@ class BikeServiceTest {
 
         assertThat(bikeService.findBikes(null, null)).hasSize(1);
         assertThat(bikeService.getBike(100L).getSerialNumber()).isEqualTo("EB-100");
+    }
+
+    @Test
+    @DisplayName("isAvailableForReservation: returns true when bike is active, available, parked at hub and sufficient battery")
+    void isAvailableForReservation_true() {
+        when(bikeRepository.findById(100L)).thenReturn(Optional.of(testBike));
+        when(policyService.isBatterySufficient(95)).thenReturn(true);
+        when(policyService.getHoldDuration()).thenReturn(java.time.Duration.ofMinutes(15));
+
+        assertThat(bikeService.isAvailableForReservation(100L)).isTrue();
+    }
+
+    @Test
+    @DisplayName("isAvailableForReservation: returns false when bike is reserved or low battery")
+    void isAvailableForReservation_false() {
+        testBike.setStatus(BikeStatus.RESERVED);
+        when(bikeRepository.findById(100L)).thenReturn(Optional.of(testBike));
+
+        assertThat(bikeService.isAvailableForReservation(100L)).isFalse();
     }
 }

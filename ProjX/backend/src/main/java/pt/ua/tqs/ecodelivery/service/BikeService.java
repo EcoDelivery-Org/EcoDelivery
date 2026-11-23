@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import pt.ua.tqs.ecodelivery.dto.BikeRequest;
 import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
@@ -17,6 +18,7 @@ import pt.ua.tqs.ecodelivery.policy.PolicyService;
 import pt.ua.tqs.ecodelivery.repository.BikeEventRepository;
 import pt.ua.tqs.ecodelivery.repository.BikeRepository;
 import pt.ua.tqs.ecodelivery.repository.HubRepository;
+import pt.ua.tqs.ecodelivery.repository.ReservationRepository;
 
 /** Business logic for cargo e-bikes and vehicle inventory management (US01). */
 @Service
@@ -27,16 +29,28 @@ public class BikeService {
     private final BikeEventRepository bikeEventRepository;
     private final PolicyService policyService;
     private final InventoryLogService inventoryLogService;
+    private final ReservationRepository reservationRepository;
     private final Clock clock;
 
     public BikeService(BikeRepository bikeRepository, HubRepository hubRepository,
                        BikeEventRepository bikeEventRepository, PolicyService policyService,
                        InventoryLogService inventoryLogService, Clock clock) {
+        this(bikeRepository, hubRepository, bikeEventRepository, policyService, inventoryLogService, null, clock);
+    }
+
+    @Autowired
+    public BikeService(BikeRepository bikeRepository, HubRepository hubRepository,
+                       BikeEventRepository bikeEventRepository, PolicyService policyService,
+                       InventoryLogService inventoryLogService,
+                       @Autowired(required = false)
+                       ReservationRepository reservationRepository,
+                       Clock clock) {
         this.bikeRepository = bikeRepository;
         this.hubRepository = hubRepository;
         this.bikeEventRepository = bikeEventRepository;
         this.policyService = policyService;
         this.inventoryLogService = inventoryLogService;
+        this.reservationRepository = reservationRepository;
         this.clock = clock;
     }
 
@@ -126,9 +140,17 @@ public class BikeService {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    /** Whether a bike can be reserved now (Reserved for US08 / US09). */
+    /** Whether a bike can be reserved now (US08 / US09). */
     public boolean isAvailableForReservation(Long bikeId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Bike bike = getBike(bikeId);
+        LocalDateTime now = LocalDateTime.now(clock);
+        boolean conflicting = reservationRepository != null &&
+                reservationRepository.existsConflictingReservation(bikeId, now, now.plus(policyService.getHoldDuration()));
+        return bike.isActive()
+                && bike.getStatus() == BikeStatus.AVAILABLE
+                && bike.getCurrentHub() != null
+                && policyService.isBatterySufficient(bike.getBatteryLevel())
+                && !conflicting;
     }
 
     /** Number of bikes per status, for the operator dashboard (Reserved for US06). */

@@ -1,7 +1,9 @@
 package pt.ua.tqs.ecodelivery.policy;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
 import pt.ua.tqs.ecodelivery.model.Company;
 import pt.ua.tqs.ecodelivery.model.Courier;
 
@@ -20,14 +23,14 @@ import pt.ua.tqs.ecodelivery.model.Courier;
  * Plain unit test: no Spring, no mocks. {@link PolicyService} only holds the rules of use
  * configured by the institutional client, so it is built directly with known values.
  */
-@DisplayName("PolicyService — rules of use for US 10 (BR1, BR4/DEC-5, BR7/DEC-8, BR8, DEC-1, DEC-4)")
+@DisplayName("PolicyService — rules of use for US 09 and US 10")
 class PolicyServiceTest {
 
     private static final LocalDateTime PLANNED_START = LocalDateTime.of(2026, 11, 23, 10, 0);
     private static final Duration MAX_DURATION = Duration.ofHours(6);
 
     private static PolicyService policyWithDeposit(BigDecimal deposit) {
-        return new PolicyService(20, MAX_DURATION, deposit, new BigDecimal("0.10"), 1, Duration.ofMinutes(15));
+        return new PolicyService(20, MAX_DURATION, deposit, new BigDecimal("0.10"), 1, Duration.ofMinutes(15), Duration.ofMinutes(15));
     }
 
     private final PolicyService policy = policyWithDeposit(new BigDecimal("10.00"));
@@ -106,5 +109,43 @@ class PolicyServiceTest {
     @DisplayName("DEC-1: the maximum duration is the value configured by the client")
     void maximumDurationIsTheConfiguredValue() {
         assertEquals(MAX_DURATION, policy.getMaxReservationDuration());
+    }
+
+    @Test
+    @DisplayName("US09: configured hold duration defaults to 15 minutes")
+    void holdDurationDefaultsToConfiguredWindow() {
+        assertEquals(Duration.ofMinutes(15), policy.getHoldDuration());
+    }
+
+    @Test
+    @DisplayName("US09: validateReservationWindow succeeds for valid window within maximum duration")
+    void validateReservationWindow_valid() {
+        LocalDateTime start = LocalDateTime.of(2026, 11, 23, 10, 0);
+        LocalDateTime end = start.plusHours(2);
+        assertDoesNotThrow(() -> policy.validateReservationWindow(start, end));
+    }
+
+    @Test
+    @DisplayName("US09: validateReservationWindow fails if start or end is null")
+    void validateReservationWindow_nullThrows() {
+        LocalDateTime start = LocalDateTime.of(2026, 11, 23, 10, 0);
+        assertThrows(BusinessRuleException.class, () -> policy.validateReservationWindow(null, start));
+        assertThrows(BusinessRuleException.class, () -> policy.validateReservationWindow(start, null));
+    }
+
+    @Test
+    @DisplayName("US09: validateReservationWindow fails if end is before or equal to start")
+    void validateReservationWindow_endNotAfterStart() {
+        LocalDateTime start = LocalDateTime.of(2026, 11, 23, 10, 0);
+        assertThrows(BusinessRuleException.class, () -> policy.validateReservationWindow(start, start));
+        assertThrows(BusinessRuleException.class, () -> policy.validateReservationWindow(start, start.minusMinutes(5)));
+    }
+
+    @Test
+    @DisplayName("US09: validateReservationWindow fails if duration exceeds configured maximum")
+    void validateReservationWindow_exceedsMaxDuration() {
+        LocalDateTime start = LocalDateTime.of(2026, 11, 23, 10, 0);
+        LocalDateTime end = start.plusHours(7); // Max is 6 hours!
+        assertThrows(BusinessRuleException.class, () -> policy.validateReservationWindow(start, end));
     }
 }

@@ -51,6 +51,13 @@
         </div>
       </div>
       <div class="card stat-card">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-info">
+          <span class="stat-value" id="statReservedBikes">0</span>
+          <span class="stat-label">Active Holds</span>
+        </div>
+      </div>
+      <div class="card stat-card">
         <div class="stat-icon">📋</div>
         <div class="stat-info">
           <span class="stat-value" id="statLogCount">0</span>
@@ -66,6 +73,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="hubsTab">🏢 Hubs Management</button>
       <button class="tab-btn" data-tab="bikesTab">🚲 E-Bikes Management</button>
+      <button class="tab-btn" data-tab="reservationsTab">⏱️ Vehicle Reservation (US09)</button>
       <button class="tab-btn" data-tab="logsTab">📜 System Inventory Logs</button>
     </div>
 
@@ -201,7 +209,65 @@
       </div>
     </section>
 
-    <!-- TAB 3: LOGS -->
+    <!-- TAB 3: RESERVATIONS (US09) -->
+    <section id="reservationsTab" class="tab-content">
+      <div class="grid-2-cols">
+        <!-- Hold Form -->
+        <div class="card">
+          <h2>Place Temporal Hold (US09)</h2>
+          <p class="section-desc">Place a temporal hold on an available e-bike to guarantee availability while traveling to the hub.</p>
+          <div class="alert alert-info" style="margin-bottom: 1rem; padding: 0.75rem; background: #e0f2fe; border-left: 4px solid #0284c7; border-radius: 4px; font-size: 0.85rem;">
+            <strong>Policy Window:</strong> Locks vehicle state (RESERVED) for 15 minutes. Expired holds automatically return the vehicle to active availability.
+          </div>
+          <form id="createReservationForm">
+            <div class="form-group">
+              <label for="reservationCourierId">Courier ID *</label>
+              <input type="number" id="reservationCourierId" value="1" min="1" required placeholder="e.g. 1">
+              <small class="help-text">Courier must belong to an institutional delivery company.</small>
+            </div>
+            <div class="form-group">
+              <label for="reservationBikeId">Select Available E-Bike *</label>
+              <select id="reservationBikeId" required>
+                <option value="">-- Select an Available E-Bike --</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btnSubmitReservation">
+              <span>⏱️ Place Temporal Hold (15 min)</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Holds & Reservations Table -->
+        <div class="card">
+          <div class="card-header-actions">
+            <h2>Active & Recent Holds</h2>
+            <div class="filter-actions">
+              <button class="btn btn-sm btn-outline" onclick="triggerExpireHolds()" title="Run hold expiration check now">Check Expired Holds</button>
+              <button class="btn btn-sm btn-outline" onclick="loadReservations()">Refresh</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="reservationsTable">
+              <thead>
+                <tr>
+                  <th>Hold ID</th>
+                  <th>E-Bike</th>
+                  <th>Courier</th>
+                  <th>Window</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="reservationsTableBody">
+                <tr><td colspan="6" class="text-center text-muted">No reservations placed yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: LOGS -->
     <section id="logsTab" class="tab-content">
       <div class="card">
         <div class="card-header-actions">
