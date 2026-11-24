@@ -1,31 +1,41 @@
 package pt.ua.tqs.ecodelivery.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import pt.ua.tqs.ecodelivery.dto.HubRequest;
 import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
 import pt.ua.tqs.ecodelivery.exception.ResourceNotFoundException;
 import pt.ua.tqs.ecodelivery.model.Bike;
+import pt.ua.tqs.ecodelivery.model.BikeStatus;
+import pt.ua.tqs.ecodelivery.model.Coordinates;
 import pt.ua.tqs.ecodelivery.model.Hub;
+import pt.ua.tqs.ecodelivery.policy.PolicyService;
 import pt.ua.tqs.ecodelivery.port.GeocodingPort;
 import pt.ua.tqs.ecodelivery.repository.BikeRepository;
 import pt.ua.tqs.ecodelivery.repository.HubRepository;
 
-/** Business logic for hubs and hub inventory management (US01). */
+/** Business logic for hubs: inventory management (US01) and hub search and availability discovery (US08). */
 @Service
 public class HubService {
+
+    private static final double EARTH_RADIUS_KM = 6371.0;
 
     private final HubRepository hubRepository;
     private final BikeRepository bikeRepository;
     private final GeocodingPort geocodingPort;
     private final InventoryLogService inventoryLogService;
+    private final PolicyService policyService;
 
     public HubService(HubRepository hubRepository, BikeRepository bikeRepository,
-                      GeocodingPort geocodingPort, InventoryLogService inventoryLogService) {
+                      GeocodingPort geocodingPort, InventoryLogService inventoryLogService,
+                      PolicyService policyService) {
         this.hubRepository = hubRepository;
         this.bikeRepository = bikeRepository;
         this.geocodingPort = geocodingPort;
         this.inventoryLogService = inventoryLogService;
+        this.policyService = policyService;
     }
 
     /** Creates a hub; its address is geocoded into coordinates if not provided (US01). */
@@ -93,13 +103,56 @@ public class HubService {
         return bikeRepository.countByCurrentHubId(hubId);
     }
 
-    /** Bikes at the hub that can be reserved now (Reserved for US08). */
+    /**
+     * Bikes at the hub that can be booked now (US08): available, active (BR2) and with the battery
+     * at or above the minimum level configured in the usage policy (BR1). Sorted by battery, highest first,
+     * so the courier can compare battery levels.
+     */
     public List<Bike> getAvailableBikes(Long hubId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        getHub(hubId);
+        return bookableBikesAt(hubId);
     }
 
-    /** Hubs within a radius of an address (Hub Finder) (Reserved for US08). */
-    public List<Hub> findNearbyHubs(String address, double radiusKm) {
-        throw new UnsupportedOperationException("Not implemented yet");
+    /**
+     * Hubs within a radius of an address (Hub Finder, US08), nearest first. The address is geocoded
+     * through the GeocodingPort; each hub carries its distance and its number of bookable bikes.
+     */
+    public List<NearbyHub> findNearbyHubs(String address, double radiusKm) {
+        if (address == null || address.isBlank()) {
+            throw new IllegalArgumentException("Search address cannot be empty");
+        }
+        if (!(radiusKm > 0)) {
+            throw new IllegalArgumentException("Search radius must be greater than zero");
+        }
+        Coordinates origin = geocodingPort.geocode(address.trim())
+                .orElseThrow(() -> new BusinessRuleException("Unable to geocode address: " + address.trim()));
+
+        List<NearbyHub> result = new ArrayList<>();
+        for (Hub hub : hubRepository.findAll()) {
+            double distance = distanceKm(origin, hub);
+            if (distance <= radiusKm) {
+                result.add(new NearbyHub(hub, distance, bookableBikesAt(hub.getId()).size()));
+            }
+        }
+        result.sort(Comparator.comparingDouble(NearbyHub::distanceKm));
+        return result;
+    }
+
+    private List<Bike> bookableBikesAt(Long hubId) {
+        int minBatteryLevel = policyService.getMinBatteryLevel();
+        return bikeRepository.findByCurrentHubIdAndStatusAndActiveTrue(hubId, BikeStatus.AVAILABLE).stream()
+                .filter(bike -> bike.getBatteryLevel() >= minBatteryLevel)
+                .sorted(Comparator.comparingInt(Bike::getBatteryLevel).reversed())
+                .toList();
+    }
+
+    /** Great-circle (haversine) distance, in km, between a point and a hub. */
+    private static double distanceKm(Coordinates origin, Hub hub) {
+        double dLat = Math.toRadians(hub.getLatitude() - origin.latitude());
+        double dLon = Math.toRadians(hub.getLongitude() - origin.longitude());
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(origin.latitude())) * Math.cos(Math.toRadians(hub.getLatitude()))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return 2 * EARTH_RADIUS_KM * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 }

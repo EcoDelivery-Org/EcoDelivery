@@ -15,10 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 import pt.ua.tqs.ecodelivery.dto.BikeResponse;
 import pt.ua.tqs.ecodelivery.dto.HubRequest;
 import pt.ua.tqs.ecodelivery.dto.HubResponse;
+import pt.ua.tqs.ecodelivery.dto.NearbyHubResponse;
+import pt.ua.tqs.ecodelivery.model.Bike;
 import pt.ua.tqs.ecodelivery.model.Hub;
 import pt.ua.tqs.ecodelivery.service.HubService;
+import pt.ua.tqs.ecodelivery.service.NearbyHub;
 
-/** REST boundary for hubs and hub inventory management (US01). */
+/** REST boundary for hubs: inventory management (US01) and hub search and availability discovery (US08). */
 @RestController
 @RequestMapping("/api/hubs")
 @CrossOrigin(origins = "*")
@@ -49,16 +52,42 @@ public class HubController {
         return toResponse(hubService.getHub(id));
     }
 
-    /** GET /api/hubs/{id}/bikes: bikes available at the hub (Reserved for US08) */
+    /** GET /api/hubs/{id}/bikes - Bikes that can be booked now at the hub, highest battery first (US08) */
     @GetMapping("/{id}/bikes")
     public List<BikeResponse> getAvailableBikes(@PathVariable Long id) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return hubService.getAvailableBikes(id).stream().map(this::toBikeResponse).toList();
     }
 
-    /** GET /api/hubs/nearby?address=&radiusKm= (Hub Finder) (Reserved for US08) */
+    /** GET /api/hubs/nearby?address=&radiusKm= - Hub Finder: hubs within a radius, nearest first (US08) */
     @GetMapping("/nearby")
-    public List<HubResponse> findNearbyHubs(@RequestParam String address, @RequestParam double radiusKm) {
-        throw new UnsupportedOperationException("Not implemented yet");
+    public List<NearbyHubResponse> findNearbyHubs(@RequestParam String address, @RequestParam double radiusKm) {
+        return hubService.findNearbyHubs(address, radiusKm).stream().map(this::toNearbyResponse).toList();
+    }
+
+    private NearbyHubResponse toNearbyResponse(NearbyHub nearby) {
+        Hub hub = nearby.hub();
+        return new NearbyHubResponse(
+                hub.getId(),
+                hub.getName(),
+                hub.getAddress(),
+                hub.getLatitude(),
+                hub.getLongitude(),
+                Math.round(nearby.distanceKm() * 100.0) / 100.0,
+                nearby.availableBikes()
+        );
+    }
+
+    private BikeResponse toBikeResponse(Bike bike) {
+        return new BikeResponse(
+                bike.getId(),
+                bike.getSerialNumber(),
+                bike.getModel(),
+                bike.getCargoCapacityKg(),
+                bike.getBatteryLevel(),
+                bike.getStatus(),
+                bike.isActive(),
+                bike.getCurrentHub() != null ? bike.getCurrentHub().getId() : null
+        );
     }
 
     private HubResponse toResponse(Hub hub) {
