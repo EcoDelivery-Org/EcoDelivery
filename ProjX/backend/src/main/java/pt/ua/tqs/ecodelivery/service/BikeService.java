@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pt.ua.tqs.ecodelivery.dto.BikeRequest;
 import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
 import pt.ua.tqs.ecodelivery.exception.ResourceNotFoundException;
@@ -13,10 +14,13 @@ import pt.ua.tqs.ecodelivery.model.BikeEvent;
 import pt.ua.tqs.ecodelivery.model.BikeEventType;
 import pt.ua.tqs.ecodelivery.model.BikeStatus;
 import pt.ua.tqs.ecodelivery.model.Hub;
+import pt.ua.tqs.ecodelivery.model.Reservation;
+import pt.ua.tqs.ecodelivery.model.ReservationStatus;
 import pt.ua.tqs.ecodelivery.policy.PolicyService;
 import pt.ua.tqs.ecodelivery.repository.BikeEventRepository;
 import pt.ua.tqs.ecodelivery.repository.BikeRepository;
 import pt.ua.tqs.ecodelivery.repository.HubRepository;
+import pt.ua.tqs.ecodelivery.repository.ReservationRepository;
 
 /** Business logic for cargo e-bikes and vehicle inventory management (US01). */
 @Service
@@ -27,16 +31,19 @@ public class BikeService {
     private final BikeEventRepository bikeEventRepository;
     private final PolicyService policyService;
     private final InventoryLogService inventoryLogService;
+    private final ReservationRepository reservationRepository;
     private final Clock clock;
 
     public BikeService(BikeRepository bikeRepository, HubRepository hubRepository,
                        BikeEventRepository bikeEventRepository, PolicyService policyService,
-                       InventoryLogService inventoryLogService, Clock clock) {
+                       InventoryLogService inventoryLogService, ReservationRepository reservationRepository,
+                       Clock clock) {
         this.bikeRepository = bikeRepository;
         this.hubRepository = hubRepository;
         this.bikeEventRepository = bikeEventRepository;
         this.policyService = policyService;
         this.inventoryLogService = inventoryLogService;
+        this.reservationRepository = reservationRepository;
         this.clock = clock;
     }
 
@@ -89,6 +96,12 @@ public class BikeService {
 
     /** Lists bikes in inventory, optionally filtered by hub and/or status (US01). */
     public List<Bike> findBikes(Long hubId, BikeStatus status) {
+        // An AVAILABLE search is the courier discovery view; other queries remain inventory views.
+        if (status == BikeStatus.AVAILABLE) {
+            List<Bike> candidates = hubId == null ? bikeRepository.findByStatus(status)
+                    : bikeRepository.findByCurrentHubIdAndStatus(hubId, status);
+            return candidates.stream().filter(this::isAvailableForReservation).toList();
+        }
         if (hubId != null && status != null) {
             return bikeRepository.findByCurrentHubIdAndStatus(hubId, status);
         } else if (hubId != null) {
@@ -106,9 +119,37 @@ public class BikeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Bike not found with id: " + id));
     }
 
-    /** Changes the lifecycle status of a bike (Reserved for US02). */
+    /** Changes the lifecycle status of a bike (US02). */
+    @Transactional
     public Bike changeStatus(Long id, BikeStatus newStatus) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Bike bike = getBike(id);
+        BikeStatus oldStatus = bike.getStatus();
+        if (oldStatus == newStatus) {
+            return bike;
+        }
+        if (newStatus == null || newStatus == BikeStatus.RESERVED || newStatus == BikeStatus.IN_USE
+                || oldStatus == BikeStatus.RETIRED
+                || !(switch (oldStatus) {
+                    case AVAILABLE -> newStatus == BikeStatus.MAINTENANCE || newStatus == BikeStatus.RETIRED;
+                    case RESERVED -> newStatus == BikeStatus.AVAILABLE || newStatus == BikeStatus.MAINTENANCE
+                            || newStatus == BikeStatus.RETIRED;
+                    case MAINTENANCE -> newStatus == BikeStatus.AVAILABLE || newStatus == BikeStatus.RETIRED;
+                    case IN_USE -> newStatus == BikeStatus.MAINTENANCE;
+                    case RETIRED -> false;
+                })) {
+            throw new BusinessRuleException("Invalid bike lifecycle transition from " + oldStatus + " to " + newStatus);
+        }
+        if (oldStatus == BikeStatus.RESERVED && newStatus == BikeStatus.AVAILABLE
+                && !reservationRepository.findByBikeIdAndStatus(id, ReservationStatus.RESERVED).isEmpty()) {
+            throw new BusinessRuleException("Bike has pending reservations");
+        }
+        bike.setStatus(newStatus);
+        Bike saved = bikeRepository.save(bike);
+        if (newStatus == BikeStatus.MAINTENANCE || newStatus == BikeStatus.RETIRED) {
+            cancelPendingReservations(id);
+        }
+        recordEvent(saved, BikeEventType.STATUS_CHANGED, oldStatus + " -> " + newStatus);
+        return saved;
     }
 
     /** Moves a bike to another hub (Reserved for future relocation stories). */
@@ -116,19 +157,51 @@ public class BikeService {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    /** Activates a bike, making it part of the operating fleet (Reserved for US02). */
+    /** Activates a bike, making it part of the operating fleet (US02). */
+    @Transactional
     public Bike activate(Long bikeId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Bike bike = getBike(bikeId);
+        if (bike.getStatus() == BikeStatus.RETIRED) {
+            throw new BusinessRuleException("Retired bikes cannot be activated");
+        }
+        if (bike.isActive()) {
+            return bike;
+        }
+        bike.setActive(true);
+        Bike saved = bikeRepository.save(bike);
+        recordEvent(saved, BikeEventType.ACTIVATED, "Bike activated");
+        return saved;
     }
 
-    /** Deactivates a bike, taking it out of the operating fleet (Reserved for US02). */
+    /** Deactivates a bike, taking it out of the operating fleet (US02). */
+    @Transactional
     public Bike deactivate(Long bikeId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Bike bike = getBike(bikeId);
+        if (!bike.isActive()) {
+            return bike;
+        }
+        bike.setActive(false);
+        Bike saved = bikeRepository.save(bike);
+        cancelPendingReservations(bikeId);
+        recordEvent(saved, BikeEventType.DEACTIVATED, "Bike deactivated");
+        return saved;
     }
 
-    /** Whether a bike can be reserved now (Reserved for US08 / US09). */
+    /** Whether a bike can be reserved now (US02). */
     public boolean isAvailableForReservation(Long bikeId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return isAvailableForReservation(getBike(bikeId));
+    }
+
+    private boolean isAvailableForReservation(Bike bike) {
+        return bike.isActive() && bike.getStatus() == BikeStatus.AVAILABLE
+                && policyService.isBatterySufficient(bike.getBatteryLevel())
+                && bike.getCurrentHub() != null;
+    }
+
+    private void cancelPendingReservations(Long bikeId) {
+        List<Reservation> pending = reservationRepository.findByBikeIdAndStatus(bikeId, ReservationStatus.RESERVED);
+        pending.forEach(reservation -> reservation.setStatus(ReservationStatus.CANCELLED));
+        reservationRepository.saveAll(pending);
     }
 
     /** Number of bikes per status, for the operator dashboard (Reserved for US06). */

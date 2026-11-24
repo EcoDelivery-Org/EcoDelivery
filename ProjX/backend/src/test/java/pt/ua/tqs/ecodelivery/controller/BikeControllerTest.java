@@ -10,6 +10,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import pt.ua.tqs.ecodelivery.dto.BikeRequest;
+import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
+import pt.ua.tqs.ecodelivery.exception.ResourceNotFoundException;
 import pt.ua.tqs.ecodelivery.model.Bike;
 import pt.ua.tqs.ecodelivery.model.BikeStatus;
 import pt.ua.tqs.ecodelivery.model.Hub;
@@ -20,6 +22,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -87,5 +90,33 @@ class BikeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id", is(500)))
                 .andExpect(jsonPath("$.serialNumber", is("EB-500")));
+    }
+
+    @Test
+    void updateStatusReturnsUpdatedBike() throws Exception {
+        Bike bike = new Bike("EB-500", "Cargo", 65, 100, BikeStatus.MAINTENANCE, true, null);
+        bike.setId(500L);
+        when(bikeService.changeStatus(500L, BikeStatus.MAINTENANCE)).thenReturn(bike);
+        mockMvc.perform(patch("/api/bikes/500/status").param("status", "MAINTENANCE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status", is("MAINTENANCE")));
+    }
+
+    @Test
+    void updateStatusRejectsInvalidTransitionAndMissingBike() throws Exception {
+        when(bikeService.changeStatus(500L, BikeStatus.AVAILABLE))
+                .thenThrow(new BusinessRuleException("Invalid transition"));
+        when(bikeService.changeStatus(999L, BikeStatus.MAINTENANCE))
+                .thenThrow(new ResourceNotFoundException("Bike not found"));
+        mockMvc.perform(patch("/api/bikes/500/status").param("status", "AVAILABLE"))
+                .andExpect(status().isConflict());
+        mockMvc.perform(patch("/api/bikes/999/status").param("status", "MAINTENANCE"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateStatusRejectsInvalidValue() throws Exception {
+        mockMvc.perform(patch("/api/bikes/500/status").param("status", "BROKEN"))
+                .andExpect(status().isBadRequest());
     }
 }

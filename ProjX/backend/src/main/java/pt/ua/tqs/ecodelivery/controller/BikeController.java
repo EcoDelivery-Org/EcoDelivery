@@ -51,10 +51,10 @@ public class BikeController {
         return toResponse(bikeService.getBike(id));
     }
 
-    /** PATCH /api/bikes/{id}/status?status= (Reserved for US02) */
+    /** PATCH /api/bikes/{id}/status?status= (US02) */
     @PatchMapping("/{id}/status")
     public BikeResponse updateStatus(@PathVariable Long id, @RequestParam BikeStatus status) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return toResponse(bikeService.changeStatus(id, status));
     }
 
     /** PATCH /api/bikes/{id}/hub?hubId= (Reserved for future relocation stories) */
