@@ -19,3 +19,6 @@ ecodelivery:
     deposit-amount: 10.00
     overtime-rate-per-minute: 0.10
     max-active-reservations-per-courier: 1
+    start-window: PT15M
+    hold-duration: PT15M
+    hold-expiration-interval: 10000

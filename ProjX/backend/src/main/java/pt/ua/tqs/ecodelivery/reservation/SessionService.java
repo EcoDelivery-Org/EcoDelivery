@@ -52,9 +52,69 @@ public class SessionService {
         this.clock = clock;
     }
 
-    /** Reserves a bike for a courier, for a period. */
+    /**
+     * US09: Reserves a bike for a courier, placing a temporal hold on an available e-bike.
+     * Locks the vehicle state (RESERVED) for the configured policy window.
+     */
+    @Transactional
     public Reservation reserve(Long courierId, Long bikeId, LocalDateTime start, LocalDateTime end) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (courierId == null) {
+            throw new IllegalArgumentException("Courier id must not be null");
+        }
+        if (bikeId == null) {
+            throw new IllegalArgumentException("Bike id must not be null");
+        }
+
+        // Return any expired holds to active availability before creating a new reservation
+        expireHolds();
+
+        Courier courier = courierRepository.findById(courierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Courier " + courierId + " not found"));
+        Bike bike = bikeRepository.findById(bikeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Bike " + bikeId + " not found"));
+
+        checkCourierIsEligible(courier);
+        long active = reservationRepository.countByCourierIdAndStatusIn(courierId, ACTIVE_STATUSES);
+        if (!policyService.canCourierReserve(courierId, active)) {
+            throw new BusinessRuleException("Courier " + courierId + " already has an active reservation or session");
+        }
+
+        checkBikeCanBeUsed(bike);
+        if (bike.getStatus() != BikeStatus.AVAILABLE) {
+            throw new BusinessRuleException("Bike " + bikeId + " is not available (" + bike.getStatus() + ")");
+        }
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (start == null) {
+            start = now;
+        }
+        if (end == null) {
+            end = start.plus(policyService.getHoldDuration());
+        }
+
+        if (start.isBefore(now.minusSeconds(60))) {
+            throw new BusinessRuleException("Reservation start time cannot be in the past");
+        }
+
+        policyService.validateReservationWindow(start, end);
+
+        if (reservationRepository.existsConflictingReservation(bikeId, start, end)) {
+            throw new BusinessRuleException("Bike " + bikeId + " has a conflicting reservation");
+        }
+
+        // Lock vehicle state for the configured policy window
+        bike.setStatus(BikeStatus.RESERVED);
+        bikeRepository.save(bike);
+
+        Reservation reservation = new Reservation();
+        reservation.setCourier(courier);
+        reservation.setBike(bike);
+        reservation.setStartHub(bike.getCurrentHub());
+        reservation.setPlannedStart(start);
+        reservation.setPlannedEnd(end);
+        reservation.setStatus(ReservationStatus.RESERVED);
+
+        return reservationRepository.save(reservation);
     }
 
     /**
@@ -138,17 +198,64 @@ public class SessionService {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
+    /**
+     * US09: Returns expired holds automatically to active availability.
+     * Identifies reservations in RESERVED status where plannedEnd is past or the start window elapsed,
+     * updates their status to EXPIRED and unlocks the vehicle back to AVAILABLE.
+     */
+    @Transactional
+    public List<Reservation> expireHolds() {
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime cutoff = now.minus(policyService.getStartWindowTolerance());
+        List<Reservation> expiredReservations = reservationRepository.findExpiredReservations(now, cutoff);
+        for (Reservation r : expiredReservations) {
+            r.setStatus(ReservationStatus.EXPIRED);
+            reservationRepository.save(r);
+
+            Bike bike = r.getBike();
+            if (bike != null && bike.getStatus() == BikeStatus.RESERVED) {
+                bike.setStatus(BikeStatus.AVAILABLE);
+                bikeRepository.save(bike);
+            }
+        }
+        return expiredReservations;
+    }
+
+    /** Periodic scheduled trigger to clean up expired holds automatically. */
+    @org.springframework.scheduling.annotation.Scheduled(fixedRateString = "${ecodelivery.policy.hold-expiration-interval:10000}")
+    public void scheduledExpireHolds() {
+        expireHolds();
+    }
+
     /** Cancels a reservation: bike becomes AVAILABLE, deposit is refunded. */
+    @Transactional
     public Reservation cancel(Long reservationId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reservation " + reservationId + " not found"));
+
+        if (reservation.getStatus() != ReservationStatus.RESERVED) {
+            throw new BusinessRuleException("Reservation " + reservationId + " cannot be cancelled (" + reservation.getStatus() + ")");
+        }
+
+        reservation.setStatus(ReservationStatus.CANCELLED);
+        Bike bike = reservation.getBike();
+        if (bike != null && bike.getStatus() == BikeStatus.RESERVED) {
+            bike.setStatus(BikeStatus.AVAILABLE);
+            bikeRepository.save(bike);
+        }
+
+        return reservationRepository.save(reservation);
     }
 
     public Reservation getReservation(Long reservationId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reservation " + reservationId + " not found"));
     }
 
     public List<Reservation> findByCourier(Long courierId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        courierRepository.findById(courierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Courier " + courierId + " not found"));
+        return reservationRepository.findByCourierIdOrderByPlannedStartDesc(courierId);
     }
 
     /** BR7/DEC-8: the courier must belong to a registered company. */
