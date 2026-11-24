@@ -40,15 +40,21 @@ public class OperatorController {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    /** POST /api/operator/bikes/{id}/activate (Reserved for US02) */
+    /** POST /api/operator/bikes/{id}/activate (US02) */
     @PostMapping("/bikes/{id}/activate")
     public BikeResponse activateBike(@PathVariable Long id) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return toResponse(bikeService.activate(id));
     }
 
-    /** POST /api/operator/bikes/{id}/deactivate (Reserved for US02) */
+    /** POST /api/operator/bikes/{id}/deactivate (US02) */
     @PostMapping("/bikes/{id}/deactivate")
     public BikeResponse deactivateBike(@PathVariable Long id) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return toResponse(bikeService.deactivate(id));
+    }
+
+    private BikeResponse toResponse(pt.ua.tqs.ecodelivery.model.Bike bike) {
+        return new BikeResponse(bike.getId(), bike.getSerialNumber(), bike.getModel(),
+                bike.getCargoCapacityKg(), bike.getBatteryLevel(), bike.getStatus(),
+                bike.isActive(), bike.getCurrentHub() == null ? null : bike.getCurrentHub().getId());
     }
 }

@@ -51,16 +51,10 @@ public class BikeController {
         return toResponse(bikeService.getBike(id));
     }
 
-    /** GET /api/bikes/{id}/available: whether bike can be reserved now (US09) */
-    @GetMapping("/{id}/available")
-    public boolean isAvailableForReservation(@PathVariable Long id) {
-        return bikeService.isAvailableForReservation(id);
-    }
-
-    /** PATCH /api/bikes/{id}/status?status= (Reserved for US02) */
+    /** PATCH /api/bikes/{id}/status?status= (US02) */
     @PatchMapping("/{id}/status")
     public BikeResponse updateStatus(@PathVariable Long id, @RequestParam BikeStatus status) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return toResponse(bikeService.changeStatus(id, status));
     }
 
     /** PATCH /api/bikes/{id}/hub?hubId= (Reserved for future relocation stories) */

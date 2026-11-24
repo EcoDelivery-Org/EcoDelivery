@@ -14,6 +14,8 @@ import pt.ua.tqs.ecodelivery.model.ReservationStatus;
 @Repository
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
+    List<Reservation> findByBikeIdAndStatus(Long bikeId, ReservationStatus status);
+
     /**
      * BR3: whether the bike has an active reservation (RESERVED or IN_USE) overlapping
      * {@code [start, end]}. Both boundaries are included: a period that starts exactly when another
