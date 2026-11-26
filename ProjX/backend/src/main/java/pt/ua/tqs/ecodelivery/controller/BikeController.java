@@ -51,6 +51,12 @@ public class BikeController {
         return toResponse(bikeService.getBike(id));
     }
 
+    /** GET /api/bikes/{id}/available - Check if bike can be reserved now (US02/US09) */
+    @GetMapping("/{id}/available")
+    public boolean isAvailable(@PathVariable Long id) {
+        return bikeService.isAvailableForReservation(id);
+    }
+
     /** PATCH /api/bikes/{id}/status?status= (US02) */
     @PatchMapping("/{id}/status")
     public BikeResponse updateStatus(@PathVariable Long id, @RequestParam BikeStatus status) {

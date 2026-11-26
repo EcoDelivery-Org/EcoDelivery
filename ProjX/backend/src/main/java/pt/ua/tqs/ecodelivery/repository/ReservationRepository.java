@@ -50,7 +50,4 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     /** Finds all reservations belonging to a courier, ordered from newest to oldest. */
     List<Reservation> findByCourierIdOrderByPlannedStartDesc(Long courierId);
-
-    /** Finds reservations for a bike in the given status. */
-    List<Reservation> findByBikeIdAndStatus(Long bikeId, ReservationStatus status);
 }
