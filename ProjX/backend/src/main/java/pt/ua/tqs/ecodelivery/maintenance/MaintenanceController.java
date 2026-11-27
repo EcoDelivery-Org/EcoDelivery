@@ -3,7 +3,6 @@ package pt.ua.tqs.ecodelivery.maintenance;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,7 +19,6 @@ import pt.ua.tqs.ecodelivery.model.TicketStatus;
 /** REST boundary for maintenance tickets (epic: Manutenção e Operações). */
 @RestController
 @RequestMapping("/api/maintenance/tickets")
-@CrossOrigin(origins = "*")
 public class MaintenanceController {
 
     private final MaintenanceService maintenanceService;
