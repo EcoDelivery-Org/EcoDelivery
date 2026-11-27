@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pt.ua.tqs.ecodelivery.dto.BikeRequest;
+import pt.ua.tqs.ecodelivery.dto.BikeUpdateRequest;
 import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
 import pt.ua.tqs.ecodelivery.exception.ResourceNotFoundException;
 import pt.ua.tqs.ecodelivery.model.Bike;
@@ -153,9 +154,48 @@ public class BikeService {
         return saved;
     }
 
-    /** Moves a bike to another hub (Reserved for future relocation stories). */
+    /** Moves a bike to another hub, checking the target hub capacity. */
+    @Transactional
     public Bike moveToHub(Long bikeId, Long hubId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Bike bike = getBike(bikeId);
+        if (bike.getStatus() == BikeStatus.IN_USE) {
+            throw new BusinessRuleException("A bike in use cannot be relocated");
+        }
+        Hub hub = hubRepository.findById(hubId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hub not found with id: " + hubId));
+        if (bike.getCurrentHub() != null && bike.getCurrentHub().getId().equals(hubId)) {
+            return bike;
+        }
+        if (bikeRepository.countByCurrentHubId(hubId) >= hub.getCapacity()) {
+            throw new BusinessRuleException("Hub '" + hub.getName() + "' is at maximum capacity (" + hub.getCapacity() + ")");
+        }
+        String from = bike.getCurrentHub() != null ? bike.getCurrentHub().getName() : "no hub";
+        bike.setCurrentHub(hub);
+        Bike saved = bikeRepository.save(bike);
+        recordEvent(saved, BikeEventType.MOVED, "Moved from " + from + " to " + hub.getName());
+        return saved;
+    }
+
+    /** Updates the descriptive attributes of a bike (model, capacity, battery); null fields are unchanged. */
+    @Transactional
+    public Bike updateBike(Long id, BikeUpdateRequest request) {
+        Bike bike = getBike(id);
+        if (request.model() != null && !request.model().isBlank()) {
+            bike.setModel(request.model().trim());
+        }
+        if (request.cargoCapacityKg() != null) {
+            if (request.cargoCapacityKg() <= 0) {
+                throw new BusinessRuleException("Cargo capacity must be greater than zero");
+            }
+            bike.setCargoCapacityKg(request.cargoCapacityKg());
+        }
+        if (request.batteryLevel() != null) {
+            if (request.batteryLevel() < 0 || request.batteryLevel() > 100) {
+                throw new BusinessRuleException("Battery level must be between 0 and 100");
+            }
+            bike.setBatteryLevel(request.batteryLevel());
+        }
+        return bikeRepository.save(bike);
     }
 
     /** Activates a bike, making it part of the operating fleet (US02). */
@@ -207,7 +247,11 @@ public class BikeService {
 
     /** Number of bikes per status, for the operator dashboard (Reserved for US06). */
     public Map<BikeStatus, Long> countByStatus() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Map<BikeStatus, Long> counts = new java.util.EnumMap<>(BikeStatus.class);
+        for (BikeStatus status : BikeStatus.values()) {
+            counts.put(status, bikeRepository.countByStatus(status));
+        }
+        return counts;
     }
 
     /** Records an entry in the bike's history (US01 asset audit). */

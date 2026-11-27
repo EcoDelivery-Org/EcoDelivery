@@ -6,7 +6,10 @@ const API_BASE = window.location.protocol === 'file:'
 const SESSION_KEY = 'ecodelivery.user';
 const REFRESH_MS = 15000;
 
-const state = { hubs: [], bikes: [], logs: [], reservations: [] };
+const state = {
+  hubs: [], bikes: [], logs: [], reservations: [],
+  tickets: [], couriers: [], companies: [], payments: [], fleet: null
+};
 let refreshTimer = null;
 
 const $ = (id) => document.getElementById(id);
@@ -25,6 +28,26 @@ const RESERVATION_STATUS = {
   COMPLETED: { label: 'Concluída', cls: 'badge-success' },
   CANCELLED: { label: 'Cancelada', cls: '' },
   EXPIRED:   { label: 'Expirada',  cls: 'badge-danger' }
+};
+
+const TICKET_STATUS = {
+  OPEN:     { label: 'Aberto',    cls: 'badge-warning' },
+  ASSIGNED: { label: 'Atribuído', cls: 'badge-info' },
+  CLOSED:   { label: 'Fechado',   cls: 'badge-success' }
+};
+
+const TICKET_PRIORITY = {
+  LOW:    { label: 'Baixa', cls: '' },
+  MEDIUM: { label: 'Média', cls: 'badge-warning' },
+  HIGH:   { label: 'Alta',  cls: 'badge-danger' }
+};
+
+const PAYMENT_TYPE = { DEPOSIT: 'Caução', OVERTIME: 'Horas extra', REFUND: 'Reembolso' };
+
+const PAYMENT_STATUS = {
+  PENDING:   { label: 'Pendente', cls: 'badge-warning' },
+  SUCCEEDED: { label: 'Concluído', cls: 'badge-success' },
+  FAILED:    { label: 'Falhou', cls: 'badge-danger' }
 };
 
 // ================= Bootstrapping & auth =================
@@ -93,6 +116,7 @@ function showView(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === name));
   if (location.hash !== `#${name}`) location.hash = name;
   // Leaflet can't measure a hidden container, so recompute its size once visible.
+  if (name === 'payments') loadPayments().then(renderPayments);
   if (name === 'hubs' && map.instance) {
     map.instance.invalidateSize();
     if (!map.fitted) fitHubMap();
@@ -113,9 +137,15 @@ async function api(path, options = {}) {
 }
 
 async function refreshAll() {
-  await Promise.all([loadHubs(), loadBikes(), loadLogs(), loadReservations()]);
+  // Couriers first: the reservation and payment lists depend on the selected courier.
+  await Promise.all([loadCouriers(), loadCompanies()]);
+  await Promise.all([loadHubs(), loadBikes(), loadLogs(), loadReservations(),
+                     loadTickets(), loadFleet(), loadPayments()]);
   renderBikes();          // depends on hubs
-  renderReservations();   // depends on bikes
+  renderReservations();   // depends on bikes and couriers
+  renderTickets();
+  renderPayments();
+  renderCouriers();
   renderStats();
 }
 
@@ -135,7 +165,7 @@ function loadHubs() {
 
 function renderHubs() {
   const tbody = $('hubsTableBody');
-  if (!state.hubs.length) return setEmpty(tbody, 4, 'Ainda não existem hubs.');
+  if (!state.hubs.length) return setEmpty(tbody, 5, 'Ainda não existem hubs.');
 
   tbody.innerHTML = state.hubs.map(h => {
     const pct = hubOccupancyPct(h);
@@ -148,6 +178,10 @@ function renderHubs() {
         <td>
           ${h.currentBikes} / ${h.capacity}
           <div class="bar"><div class="${full ? 'full' : ''}" style="width:${pct}%"></div></div>
+        </td>
+        <td class="actions">
+          <button class="btn btn-sm" data-hub-edit="${h.id}">Editar</button>
+          <button class="btn btn-sm btn-danger" data-hub-delete="${h.id}">Apagar</button>
         </td>
       </tr>`;
   }).join('');
@@ -282,6 +316,13 @@ function renderBikes() {
       actions += `<button class="btn btn-sm" data-bike-status="AVAILABLE" data-id="${b.id}">Disponibilizar</button>`;
     }
     if (b.status !== 'RETIRED') {
+      actions += ` <button class="btn btn-sm" data-bike-edit="${b.id}">Editar</button>`;
+      actions += ` <button class="btn btn-sm" data-bike-ticket="${b.id}">Ticket</button>`;
+    }
+    if (b.status === 'AVAILABLE' || b.status === 'MAINTENANCE') {
+      actions += ` <button class="btn btn-sm btn-danger" data-bike-status="RETIRED" data-id="${b.id}">Retirar</button>`;
+    }
+    if (b.status !== 'RETIRED') {
       actions += b.active
         ? ` <button class="btn btn-sm btn-danger" data-bike-active="deactivate" data-id="${b.id}">Desativar</button>`
         : ` <button class="btn btn-sm" data-bike-active="activate" data-id="${b.id}">Ativar</button>`;
@@ -310,9 +351,9 @@ function renderReservationBikeSelect() {
 
 // ================= Reservations =================
 async function loadReservations() {
-  const courierId = $('reservationCourierId').value || 1;
+  const courierId = $('reservationCourierId').value;
   try {
-    state.reservations = await api(`/reservations?courierId=${encodeURIComponent(courierId)}`);
+    state.reservations = await api(courierId ? `/reservations?courierId=${encodeURIComponent(courierId)}` : '/reservations');
   } catch {
     state.reservations = []; // e.g. unknown courier
   }
@@ -321,20 +362,24 @@ async function loadReservations() {
 function renderReservations() {
   renderReservationBikeSelect();
   const tbody = $('reservationsTableBody');
-  if (!state.reservations.length) return setEmpty(tbody, 6, 'Este estafeta não tem reservas.');
+  if (!state.reservations.length) return setEmpty(tbody, 6, 'Sem reservas.');
 
   tbody.innerHTML = state.reservations.map(r => {
     const st = RESERVATION_STATUS[r.status] || { label: r.status, cls: '' };
     const bike = state.bikes.find(b => b.id === r.bikeId);
-    const actions = r.status === 'RESERVED'
-      ? `<button class="btn btn-sm" data-res-start="${r.id}" data-courier="${r.courierId}">Iniciar</button>
-         <button class="btn btn-sm btn-danger" data-res-cancel="${r.id}">Cancelar</button>`
-      : '';
+    let actions = '';
+    if (r.status === 'RESERVED') {
+      actions = `<button class="btn btn-sm" data-res-start="${r.id}" data-courier="${r.courierId}">Iniciar</button>
+         <button class="btn btn-sm btn-danger" data-res-cancel="${r.id}">Cancelar</button>`;
+    } else if (r.status === 'IN_USE') {
+      actions = `<select class="select-sm" data-end-hub-for="${r.id}">${hubOptions()}</select>
+         <button class="btn btn-sm btn-primary" data-res-end="${r.id}">Terminar</button>`;
+    }
     return `
       <tr>
         <td>#${r.id}</td>
         <td>${bike ? esc(bike.serialNumber) : `Bike #${r.bikeId}`}</td>
-        <td>#${r.courierId}</td>
+        <td>${esc(courierName(r.courierId))}</td>
         <td><code>${fmtTime(r.plannedStart)} – ${fmtTime(r.plannedEnd)}</code></td>
         <td><span class="badge ${st.cls}">${st.label}</span></td>
         <td class="actions">${actions}</td>
@@ -373,7 +418,10 @@ function renderLogs() {
 
 // ================= Stats =================
 function renderStats() {
-  const count = (status) => state.bikes.filter(b => b.status === status).length;
+  // Prefer the server-side fleet overview; fall back to counting the loaded bikes.
+  const server = state.fleet?.bikesByStatus;
+  const count = (status) => server ? (server[status] ?? 0) : state.bikes.filter(b => b.status === status).length;
+  $('statOpenTickets').textContent = state.fleet?.openTickets ?? state.tickets.filter(t => t.status !== 'CLOSED').length;
   $('statHubCount').textContent = state.hubs.length;
   $('statBikeCount').textContent = state.bikes.length;
   $('statAvailableBikes').textContent = count('AVAILABLE');
@@ -425,6 +473,87 @@ function setupForms() {
 
   $('hubSearchForm').addEventListener('submit', searchHubs);
 
+  $('immediateUseBtn').addEventListener('click', () => runAction(async () => {
+    const courierId = parseInt($('reservationCourierId').value, 10);
+    const bikeId = parseInt($('reservationBikeId').value, 10);
+    if (Number.isNaN(courierId) || Number.isNaN(bikeId)) throw new Error('Selecione estafeta e e-bike.');
+    const data = await api('/reservations/immediate', { method: 'POST', body: JSON.stringify({ courierId, bikeId }) });
+    toast(`Sessão #${data.id} iniciada.`, 'success');
+  }));
+
+  handleForm('createTicketForm', async () => {
+    const payload = {
+      bikeId: parseInt($('ticketBikeId').value, 10),
+      description: $('ticketDescription').value.trim(),
+      priority: $('ticketPriority').value
+    };
+    const t = await api('/maintenance/tickets', { method: 'POST', body: JSON.stringify(payload) });
+    toast(`Ticket #${t.id} aberto. A e-bike passou a manutenção.`, 'success');
+  });
+  $('ticketStatusFilter').addEventListener('change', renderTickets);
+
+  handleForm('createCompanyForm', async () => {
+    const c = await api('/companies', { method: 'POST', body: JSON.stringify({ name: $('companyName').value.trim() }) });
+    toast(`Empresa "${c.name}" criada.`, 'success');
+  });
+
+  handleForm('createCourierForm', async () => {
+    const company = $('courierCompany').value;
+    const payload = {
+      name: $('courierName').value.trim(),
+      email: $('courierEmail').value.trim(),
+      phone: $('courierPhone').value.trim() || null,
+      companyId: company ? parseInt(company, 10) : null
+    };
+    const c = await api('/couriers', { method: 'POST', body: JSON.stringify(payload) });
+    toast(`Estafeta "${c.name}" criado.`, 'success');
+  });
+
+  $('paymentCourierId').addEventListener('change', async () => {
+    await loadPayments();
+    renderPayments();
+  });
+
+  handleForm('bikeEditForm', async () => {
+    const id = $('bikeEditForm').dataset.id;
+    await api(`/bikes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        model: $('beModel').value.trim(),
+        cargoCapacityKg: parseFloat($('beCargo').value),
+        batteryLevel: parseInt($('beBattery').value, 10)
+      })
+    });
+    const bike = state.bikes.find(b => String(b.id) === id);
+    const hub = $('beHub').value;
+    if (hub && bike && String(bike.hubId) !== hub) {
+      await api(`/bikes/${id}/hub?hubId=${hub}`, { method: 'PATCH' });
+    }
+    $('bikeEditDialog').close();
+    toast('E-bike atualizada.', 'success');
+  }, { reset: false });
+
+  handleForm('hubEditForm', async () => {
+    const id = $('hubEditForm').dataset.id;
+    await api(`/hubs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: $('heName').value.trim(),
+        address: $('heAddress').value.trim(),
+        capacity: parseInt($('heCapacity').value, 10),
+        latitude: numOrNull($('heLat').value),
+        longitude: numOrNull($('heLon').value),
+        boundaryRadiusMeters: numOrNull($('heRadius').value) ?? 50
+      })
+    });
+    $('hubEditDialog').close();
+    map.fitted = false;
+    toast('Hub atualizado.', 'success');
+  }, { reset: false });
+
+  document.querySelectorAll('[data-close]').forEach(btn =>
+    btn.addEventListener('click', () => $(btn.dataset.close).close()));
+
   $('bikeStatusFilter').addEventListener('change', renderBikes);
   $('logTypeFilter').addEventListener('change', loadLogs);
   $('reservationCourierId').addEventListener('change', async () => {
@@ -469,6 +598,17 @@ async function runAction(fn) {
 // ================= Table actions (event delegation) =================
 function setupTableActions() {
   $('hubsTableBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (btn?.dataset.hubEdit) return openHubEdit(Number(btn.dataset.hubEdit));
+    if (btn?.dataset.hubDelete) {
+      const hub = state.hubs.find(h => String(h.id) === btn.dataset.hubDelete);
+      if (!confirm(`Apagar o hub "${hub?.name}"?`)) return;
+      return runAction(async () => {
+        await api(`/hubs/${btn.dataset.hubDelete}`, { method: 'DELETE' });
+        map.fitted = false;
+        toast('Hub apagado.', 'success');
+      });
+    }
     const row = e.target.closest('[data-map-hub]');
     if (row) focusHubOnMap(Number(row.dataset.mapHub));
   });
@@ -477,7 +617,14 @@ function setupTableActions() {
     const btn = e.target.closest('button');
     if (!btn) return;
     const id = btn.dataset.id;
-    if (btn.dataset.bikeStatus) {
+    if (btn.dataset.bikeEdit) {
+      openBikeEdit(Number(btn.dataset.bikeEdit));
+    } else if (btn.dataset.bikeTicket) {
+      $('ticketBikeId').value = btn.dataset.bikeTicket;
+      showView('maintenance');
+      $('ticketDescription').focus();
+    } else if (btn.dataset.bikeStatus) {
+      if (btn.dataset.bikeStatus === 'RETIRED' && !confirm('Retirar esta e-bike da frota? Não pode ser revertido.')) return;
       runAction(async () => {
         await api(`/bikes/${id}/status?status=${btn.dataset.bikeStatus}`, { method: 'PATCH' });
         toast('Estado atualizado.', 'success');
@@ -503,7 +650,43 @@ function setupTableActions() {
         await api(`/reservations/${btn.dataset.resStart}/start?courierId=${btn.dataset.courier}`, { method: 'POST' });
         toast(`Reserva #${btn.dataset.resStart} iniciada.`, 'success');
       });
+    } else if (btn.dataset.resEnd) {
+      const hubId = btn.parentElement.querySelector(`[data-end-hub-for="${btn.dataset.resEnd}"]`).value;
+      if (!hubId) return toast('Escolha o hub onde a e-bike é devolvida.', 'error');
+      runAction(async () => {
+        await api(`/reservations/${btn.dataset.resEnd}/end?endHubId=${hubId}`, { method: 'POST' });
+        toast(`Sessão #${btn.dataset.resEnd} terminada. Caução reembolsada.`, 'success');
+      });
     }
+  });
+
+  $('ticketsTableBody').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.dataset.ticketAssign) {
+      const tech = await askText('Atribuir técnico', 'Nome do técnico');
+      if (!tech) return;
+      runAction(async () => {
+        await api(`/maintenance/tickets/${btn.dataset.ticketAssign}/assign?technician=${encodeURIComponent(tech)}`, { method: 'PATCH' });
+        toast('Técnico atribuído.', 'success');
+      });
+    } else if (btn.dataset.ticketClose) {
+      const resolution = await askText('Fechar ticket', 'Resolução');
+      if (!resolution) return;
+      runAction(async () => {
+        await api(`/maintenance/tickets/${btn.dataset.ticketClose}/close?resolution=${encodeURIComponent(resolution)}`, { method: 'POST' });
+        toast('Ticket fechado. A e-bike voltou a estar disponível.', 'success');
+      });
+    }
+  });
+
+  $('companiesTableBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-company-delete]');
+    if (!btn || !confirm('Apagar esta empresa?')) return;
+    runAction(async () => {
+      await api(`/companies/${btn.dataset.companyDelete}`, { method: 'DELETE' });
+      toast('Empresa apagada.', 'success');
+    });
   });
 
   $('nearbyHubsTableBody').addEventListener('click', (e) => {
@@ -556,6 +739,181 @@ async function loadHubBikes(hubId, name) {
   }
 }
 
+// ================= Couriers & companies =================
+function loadCouriers() {
+  return safeLoad(async () => { state.couriers = await api('/couriers'); }, 'estafetas');
+}
+
+function loadCompanies() {
+  return safeLoad(async () => { state.companies = await api('/companies'); }, 'empresas');
+}
+
+const courierName = (id) => state.couriers.find(c => c.id === id)?.name || (id ? `Estafeta #${id}` : '—');
+const companyName = (id) => state.companies.find(c => c.id === id)?.name || '—';
+
+function fillSelect(id, html) {
+  const select = $(id);
+  const current = select.value;
+  select.innerHTML = html;
+  if ([...select.options].some(o => o.value === current)) select.value = current;
+}
+
+function renderCouriers() {
+  const options = state.couriers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  fillSelect('reservationCourierId', options);
+  fillSelect('paymentCourierId', options);
+  fillSelect('courierCompany', '<option value="">Sem empresa (não elegível)</option>' +
+    state.companies.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join(''));
+
+  const couriers = $('couriersTableBody');
+  if (!state.couriers.length) setEmpty(couriers, 3, 'Ainda não existem estafetas.');
+  else couriers.innerHTML = state.couriers.map(c => `
+    <tr>
+      <td><strong>${esc(c.name)}</strong><div class="sub">#${c.id}</div></td>
+      <td>${esc(c.email)}<div class="sub">${esc(c.phone || '')}</div></td>
+      <td>${c.companyId ? esc(companyName(c.companyId)) : '<span class="badge badge-danger">Sem empresa</span>'}</td>
+    </tr>`).join('');
+
+  const companies = $('companiesTableBody');
+  if (!state.companies.length) setEmpty(companies, 3, 'Ainda não existem empresas.');
+  else companies.innerHTML = state.companies.map(c => `
+    <tr>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td>${state.couriers.filter(x => x.companyId === c.id).length}</td>
+      <td class="actions"><button class="btn btn-sm btn-danger" data-company-delete="${c.id}">Apagar</button></td>
+    </tr>`).join('');
+}
+
+// ================= Maintenance tickets =================
+function loadTickets() {
+  return safeLoad(async () => { state.tickets = await api('/maintenance/tickets'); }, 'tickets');
+}
+
+function loadFleet() {
+  return safeLoad(async () => { state.fleet = await api('/operator/fleet-status'); }, 'estado da frota');
+}
+
+function renderTickets() {
+  fillSelect('ticketBikeId', '<option value="">Selecione…</option>' +
+    state.bikes.filter(b => b.status !== 'RETIRED').map(b =>
+      `<option value="${b.id}">${esc(b.serialNumber)} · ${esc(b.model)}</option>`).join(''));
+
+  const filter = $('ticketStatusFilter').value;
+  const tickets = (filter ? state.tickets.filter(t => t.status === filter) : state.tickets)
+    .slice().sort((a, b) => String(b.openedAt).localeCompare(String(a.openedAt)));
+  const tbody = $('ticketsTableBody');
+  if (!tickets.length) return setEmpty(tbody, 7, 'Sem tickets.');
+
+  const now = Date.now();
+  tbody.innerHTML = tickets.map(t => {
+    const st = TICKET_STATUS[t.status] || { label: t.status, cls: '' };
+    const pr = TICKET_PRIORITY[t.priority] || { label: t.priority, cls: '' };
+    const bike = state.bikes.find(b => b.id === t.bikeId);
+    const overdue = t.status !== 'CLOSED' && t.slaDeadline && new Date(t.slaDeadline).getTime() < now;
+    let actions = '';
+    if (t.status !== 'CLOSED') {
+      actions = `<button class="btn btn-sm" data-ticket-assign="${t.id}">${t.technician ? 'Reatribuir' : 'Atribuir'}</button>
+        <button class="btn btn-sm btn-primary" data-ticket-close="${t.id}">Fechar</button>`;
+    }
+    const sub = t.status === 'CLOSED' ? esc(t.resolution || '') : (t.technician ? `Técnico: ${esc(t.technician)}` : '');
+    return `
+      <tr>
+        <td>#${t.id}</td>
+        <td>${bike ? esc(bike.serialNumber) : `Bike #${t.bikeId}`}</td>
+        <td>${esc(t.description)}<div class="sub">${sub}</div></td>
+        <td><span class="badge ${pr.cls}">${pr.label}</span></td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td class="${overdue ? 'overdue' : ''}">${fmtDateTime(t.slaDeadline)}${overdue ? '<div class="sub overdue">SLA ultrapassado</div>' : ''}</td>
+        <td class="actions">${actions}</td>
+      </tr>`;
+  }).join('');
+}
+
+// ================= Payments =================
+async function loadPayments() {
+  const courierId = $('paymentCourierId').value;
+  if (!courierId) { state.payments = []; return; }
+  try {
+    state.payments = await api(`/payments?courierId=${encodeURIComponent(courierId)}`);
+  } catch {
+    state.payments = [];
+  }
+}
+
+function renderPayments() {
+  const tbody = $('paymentsTableBody');
+  if (!state.payments.length) return setEmpty(tbody, 6, 'Sem pagamentos para este estafeta.');
+  tbody.innerHTML = state.payments.map(p => {
+    const st = PAYMENT_STATUS[p.status] || { label: p.status, cls: '' };
+    const sign = p.type === 'REFUND' ? '+' : '−';
+    return `
+      <tr>
+        <td>#${p.id}</td>
+        <td class="sub">${fmtDateTime(p.createdAt)}</td>
+        <td>${p.reservationId ? `#${p.reservationId}` : '—'}</td>
+        <td>${PAYMENT_TYPE[p.type] || esc(p.type)}</td>
+        <td>${sign} ${Number(p.amount).toFixed(2)} €</td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+      </tr>`;
+  }).join('');
+}
+
+// ================= Edit dialogs =================
+// Options for choosing the hub where a session ends (only hubs with free space).
+function hubOptions() {
+  return '<option value="">Hub de devolução…</option>' + state.hubs
+    .filter(h => h.availableCapacity > 0)
+    .map(h => `<option value="${h.id}">${esc(h.name)} (${h.currentBikes}/${h.capacity})</option>`)
+    .join('');
+}
+
+function openBikeEdit(id) {
+  const b = state.bikes.find(x => x.id === id);
+  if (!b) return;
+  $('bikeEditForm').dataset.id = id;
+  $('beModel').value = b.model;
+  $('beCargo').value = b.cargoCapacityKg;
+  $('beBattery').value = b.batteryLevel;
+  const select = $('beHub');
+  select.innerHTML = state.hubs.map(h =>
+    `<option value="${h.id}" ${h.id === b.hubId ? 'selected' : ''}>${esc(h.name)} (${h.currentBikes}/${h.capacity})</option>`).join('');
+  if (b.status === 'IN_USE' || b.hubId == null) {
+    select.insertAdjacentHTML('afterbegin', '<option value="" selected>Fora de um hub</option>');
+    select.disabled = b.status === 'IN_USE';
+  } else {
+    select.disabled = false;
+  }
+  $('bikeEditDialog').showModal();
+}
+
+function openHubEdit(id) {
+  const h = state.hubs.find(x => x.id === id);
+  if (!h) return;
+  $('hubEditForm').dataset.id = id;
+  $('heName').value = h.name;
+  $('heAddress').value = h.address;
+  $('heCapacity').value = h.capacity;
+  $('heRadius').value = h.boundaryRadiusMeters;
+  $('heLat').value = '';
+  $('heLon').value = '';
+  $('hubEditDialog').showModal();
+}
+
+// Small reusable "type a value" dialog; resolves to the text, or null if cancelled.
+function askText(title, label) {
+  const dialog = $('promptDialog');
+  $('promptTitle').textContent = title;
+  $('promptLabel').textContent = label;
+  $('promptInput').value = '';
+  return new Promise(resolve => {
+    dialog.addEventListener('close', () => {
+      resolve(dialog.returnValue === 'ok' ? $('promptInput').value.trim() : null);
+    }, { once: true });
+    dialog.returnValue = 'cancel';
+    dialog.showModal();
+  });
+}
+
 // ================= Utilities =================
 let toastTimer = null;
 function toast(message, type = 'info') {
@@ -572,6 +930,10 @@ function setEmpty(tbody, cols, text) {
 
 function fmtTime(iso) {
   return iso ? new Date(iso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function fmtDateTime(iso) {
+  return iso ? new Date(iso).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 }
 
 function numOrNull(v) {

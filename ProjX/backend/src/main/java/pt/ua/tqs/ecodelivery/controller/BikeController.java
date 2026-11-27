@@ -9,12 +9,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import pt.ua.tqs.ecodelivery.dto.BikeRequest;
 import pt.ua.tqs.ecodelivery.dto.BikeResponse;
+import pt.ua.tqs.ecodelivery.dto.BikeUpdateRequest;
 import pt.ua.tqs.ecodelivery.model.Bike;
 import pt.ua.tqs.ecodelivery.model.BikeStatus;
 import pt.ua.tqs.ecodelivery.service.BikeService;
@@ -63,10 +65,16 @@ public class BikeController {
         return toResponse(bikeService.changeStatus(id, status));
     }
 
-    /** PATCH /api/bikes/{id}/hub?hubId= (Reserved for future relocation stories) */
+    /** PATCH /api/bikes/{id}/hub?hubId= - Relocate a bike to another hub */
     @PatchMapping("/{id}/hub")
     public BikeResponse moveToHub(@PathVariable Long id, @RequestParam Long hubId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return toResponse(bikeService.moveToHub(id, hubId));
+    }
+
+    /** PUT /api/bikes/{id} - Update bike details (model, capacity, battery) */
+    @PutMapping("/{id}")
+    public BikeResponse updateBike(@PathVariable Long id, @RequestBody BikeUpdateRequest request) {
+        return toResponse(bikeService.updateBike(id, request));
     }
 
     private BikeResponse toResponse(Bike bike) {

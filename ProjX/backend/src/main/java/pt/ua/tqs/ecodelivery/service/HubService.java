@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import pt.ua.tqs.ecodelivery.dto.HubRequest;
 import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
 import pt.ua.tqs.ecodelivery.exception.ResourceNotFoundException;
@@ -81,6 +82,49 @@ public class HubService {
         Hub saved = hubRepository.save(hub);
         inventoryLogService.logHubProvisioned(saved);
         return saved;
+    }
+
+    /** Updates a hub's name, address, capacity and geofence radius; coordinates are re-geocoded if the address changes. */
+    @Transactional
+    public Hub updateHub(Long id, HubRequest request) {
+        Hub hub = getHub(id);
+        if (request.capacity() <= 0) {
+            throw new BusinessRuleException("Hub capacity must be greater than zero");
+        }
+        long parked = bikeRepository.countByCurrentHubId(id);
+        if (request.capacity() < parked) {
+            throw new BusinessRuleException("Hub has " + parked + " bikes parked; capacity cannot be below that");
+        }
+        if (request.name() != null && !request.name().isBlank()) {
+            hub.setName(request.name().trim());
+        }
+        if (request.latitude() != null && request.longitude() != null) {
+            hub.setLatitude(request.latitude());
+            hub.setLongitude(request.longitude());
+            hub.setAddress(request.address() != null ? request.address().trim() : hub.getAddress());
+        } else if (request.address() != null && !request.address().isBlank()
+                && !request.address().trim().equals(hub.getAddress())) {
+            var coords = geocodingPort.geocode(request.address().trim())
+                    .orElseThrow(() -> new BusinessRuleException("Unable to geocode address: " + request.address()));
+            hub.setAddress(request.address().trim());
+            hub.setLatitude(coords.latitude());
+            hub.setLongitude(coords.longitude());
+        }
+        hub.setCapacity(request.capacity());
+        if (request.boundaryRadiusMeters() != null && request.boundaryRadiusMeters() > 0) {
+            hub.setBoundaryRadiusMeters(request.boundaryRadiusMeters());
+        }
+        return hubRepository.save(hub);
+    }
+
+    /** Deletes a hub; refused while bikes are parked there. */
+    @Transactional
+    public void deleteHub(Long id) {
+        Hub hub = getHub(id);
+        if (bikeRepository.countByCurrentHubId(id) > 0) {
+            throw new BusinessRuleException("Hub '" + hub.getName() + "' still has bikes parked and cannot be deleted");
+        }
+        hubRepository.delete(hub);
     }
 
     public List<Hub> findAll() {

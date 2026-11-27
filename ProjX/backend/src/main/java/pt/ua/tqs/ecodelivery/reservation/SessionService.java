@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import pt.ua.tqs.ecodelivery.exception.BusinessRuleException;
@@ -22,6 +23,7 @@ import pt.ua.tqs.ecodelivery.policy.PolicyService;
 import pt.ua.tqs.ecodelivery.port.HubPort;
 import pt.ua.tqs.ecodelivery.repository.BikeRepository;
 import pt.ua.tqs.ecodelivery.repository.CourierRepository;
+import pt.ua.tqs.ecodelivery.repository.HubRepository;
 import pt.ua.tqs.ecodelivery.repository.ReservationRepository;
 
 /** Business logic for reservations and usage sessions, from booking to the end of use. */
@@ -35,17 +37,28 @@ public class SessionService {
     private final ReservationRepository reservationRepository;
     private final CourierRepository courierRepository;
     private final BikeRepository bikeRepository;
+    private final HubRepository hubRepository;
     private final PolicyService policyService;
     private final BillingService billingService;
     private final HubPort hubPort;
     private final Clock clock;
 
+    /** Kept for backwards compatibility; {@link #endSession} needs the hub repository of the other constructor. */
     public SessionService(ReservationRepository reservationRepository, CourierRepository courierRepository,
                           BikeRepository bikeRepository, PolicyService policyService,
+                          BillingService billingService, HubPort hubPort, Clock clock) {
+        this(reservationRepository, courierRepository, bikeRepository, null, policyService, billingService,
+                hubPort, clock);
+    }
+
+    @Autowired
+    public SessionService(ReservationRepository reservationRepository, CourierRepository courierRepository,
+                          BikeRepository bikeRepository, HubRepository hubRepository, PolicyService policyService,
                           BillingService billingService, HubPort hubPort, Clock clock) {
         this.reservationRepository = reservationRepository;
         this.courierRepository = courierRepository;
         this.bikeRepository = bikeRepository;
+        this.hubRepository = hubRepository;
         this.policyService = policyService;
         this.billingService = billingService;
         this.hubPort = hubPort;
@@ -193,9 +206,36 @@ public class SessionService {
         return start(reservation, bike, now, false);
     }
 
-    /** Ends a session at a hub: bike becomes AVAILABLE there, overtime is billed. */
+    /** Ends a session at a hub: bike becomes AVAILABLE there, overtime is billed and the deposit refunded. */
+    @Transactional
     public Reservation endSession(Long reservationId, Long endHubId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Reservation " + reservationId + " not found"));
+        if (reservation.getStatus() != ReservationStatus.IN_USE) {
+            throw new BusinessRuleException("Reservation " + reservationId + " is not in use (" + reservation.getStatus() + ")");
+        }
+        Hub endHub = hubRepository.findById(endHubId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hub " + endHubId + " not found"));
+        if (bikeRepository.countByCurrentHubId(endHubId) >= endHub.getCapacity()) {
+            throw new BusinessRuleException("Hub '" + endHub.getName() + "' is at maximum capacity (" + endHub.getCapacity() + ")");
+        }
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        reservation.setEndHub(endHub);
+        reservation.setActualEnd(now);
+        reservation.setStatus(ReservationStatus.COMPLETED);
+
+        Bike bike = reservation.getBike();
+        bike.setCurrentHub(endHub);
+        bike.setStatus(BikeStatus.AVAILABLE);
+        bikeRepository.save(bike);
+        Reservation saved = reservationRepository.save(reservation);
+
+        billingService.chargeOvertime(saved);
+        if (policyService.isDepositRequired()) {
+            billingService.refundDeposit(saved);
+        }
+        return saved;
     }
 
     /**
@@ -250,6 +290,14 @@ public class SessionService {
     public Reservation getReservation(Long reservationId) {
         return reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Reservation " + reservationId + " not found"));
+    }
+
+    /** Lists reservations, optionally filtered by courier and/or status; newest first. */
+    public List<Reservation> findReservations(Long courierId, ReservationStatus status) {
+        List<Reservation> result = courierId != null ? findByCourier(courierId)
+                : reservationRepository.findAll(org.springframework.data.domain.Sort.by(
+                        org.springframework.data.domain.Sort.Direction.DESC, "plannedStart"));
+        return status == null ? result : result.stream().filter(r -> r.getStatus() == status).toList();
     }
 
     public List<Reservation> findByCourier(Long courierId) {

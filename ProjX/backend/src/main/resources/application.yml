@@ -21,6 +21,9 @@ springdoc:
     path: /swagger-ui.html
 
 ecodelivery:
+  # Loads demo companies, couriers, hubs and bikes when the database is empty
+  seed:
+    enabled: true
   geocoding:
     base-url: https://nominatim.openstreetmap.org
   # Rules of use (PolicyService). Placeholder values: to be confirmed by the Product Owner.

@@ -48,6 +48,9 @@
         <button class="nav-item" data-view="hubs">Hubs</button>
         <button class="nav-item" data-view="bikes">E-Bikes</button>
         <button class="nav-item" data-view="reservations">Reservas</button>
+        <button class="nav-item" data-view="maintenance">Manutenção</button>
+        <button class="nav-item" data-view="payments">Pagamentos</button>
+        <button class="nav-item" data-view="couriers">Estafetas</button>
         <button class="nav-item" data-view="finder">Encontrar hub</button>
         <button class="nav-item" data-view="logs">Auditoria</button>
       </nav>
@@ -78,6 +81,7 @@
           <div class="stat"><span class="stat-label">Disponíveis</span><span class="stat-value" id="statAvailableBikes">0</span></div>
           <div class="stat"><span class="stat-label">Reservadas</span><span class="stat-value" id="statReservedBikes">0</span></div>
           <div class="stat"><span class="stat-label">Em manutenção</span><span class="stat-value" id="statMaintenanceBikes">0</span></div>
+          <div class="stat"><span class="stat-label">Tickets abertos</span><span class="stat-value" id="statOpenTickets">0</span></div>
         </div>
 
         <div class="card">
@@ -129,7 +133,7 @@
 
         <div class="card">
           <table class="table">
-            <thead><tr><th>Nome</th><th>Coordenadas</th><th>Raio</th><th>Ocupação</th></tr></thead>
+            <thead><tr><th>Nome</th><th>Coordenadas</th><th>Raio</th><th>Ocupação</th><th></th></tr></thead>
             <tbody id="hubsTableBody"></tbody>
           </table>
         </div>
@@ -189,9 +193,10 @@
 
         <div class="card">
           <form id="createReservationForm" class="form form-inline">
-            <label class="field field-sm"><span>Estafeta (ID)</span><input type="number" id="reservationCourierId" value="1" min="1" required></label>
+            <label class="field field-grow"><span>Estafeta</span><select id="reservationCourierId" required></select></label>
             <label class="field field-grow"><span>E-Bike disponível</span><select id="reservationBikeId" required></select></label>
             <button type="submit" class="btn btn-primary">Reservar</button>
+            <button type="button" class="btn" id="immediateUseBtn">Usar agora</button>
           </form>
         </div>
 
@@ -238,6 +243,108 @@
         </div>
       </section>
 
+      <!-- Manutenção -->
+      <section id="view-maintenance" class="view">
+        <header class="page-header">
+          <div>
+            <h1>Manutenção</h1>
+            <p class="muted">Tickets com prazo de SLA: alta 4 h · média 24 h · baixa 72 h.</p>
+          </div>
+          <select id="ticketStatusFilter" class="select-sm">
+            <option value="">Todos os estados</option>
+            <option value="OPEN">Aberto</option>
+            <option value="ASSIGNED">Atribuído</option>
+            <option value="CLOSED">Fechado</option>
+          </select>
+        </header>
+
+        <div class="card">
+          <form id="createTicketForm" class="form form-inline">
+            <label class="field field-grow"><span>E-Bike</span><select id="ticketBikeId" required></select></label>
+            <label class="field field-grow"><span>Descrição</span><input type="text" id="ticketDescription" placeholder="Travão traseiro com folga" required></label>
+            <label class="field field-sm"><span>Prioridade</span>
+              <select id="ticketPriority">
+                <option value="LOW">Baixa</option>
+                <option value="MEDIUM" selected>Média</option>
+                <option value="HIGH">Alta</option>
+              </select>
+            </label>
+            <button type="submit" class="btn btn-primary">Abrir ticket</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <table class="table">
+            <thead><tr><th>#</th><th>E-Bike</th><th>Descrição</th><th>Prioridade</th><th>Estado</th><th>Prazo SLA</th><th></th></tr></thead>
+            <tbody id="ticketsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Pagamentos -->
+      <section id="view-payments" class="view">
+        <header class="page-header">
+          <div>
+            <h1>Pagamentos</h1>
+            <p class="muted">Caução, horas extra e reembolsos por estafeta.</p>
+          </div>
+          <select id="paymentCourierId" class="select-sm"></select>
+        </header>
+
+        <div class="card">
+          <table class="table">
+            <thead><tr><th>#</th><th>Data</th><th>Reserva</th><th>Tipo</th><th>Valor</th><th>Estado</th></tr></thead>
+            <tbody id="paymentsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Estafetas -->
+      <section id="view-couriers" class="view">
+        <header class="page-header">
+          <div>
+            <h1>Estafetas</h1>
+            <p class="muted">Só estafetas ligados a uma empresa registada podem usar a frota.</p>
+          </div>
+        </header>
+
+        <div class="split">
+          <div class="card">
+            <div class="card-header"><h2>Nova empresa</h2></div>
+            <form id="createCompanyForm" class="form form-inline">
+              <label class="field field-grow"><span>Nome</span><input type="text" id="companyName" placeholder="EcoCargo Lda" required></label>
+              <button type="submit" class="btn btn-primary">Criar</button>
+            </form>
+          </div>
+          <div class="card">
+            <div class="card-header"><h2>Novo estafeta</h2></div>
+            <form id="createCourierForm" class="form form-grid">
+              <label class="field"><span>Nome</span><input type="text" id="courierName" required></label>
+              <label class="field"><span>Email</span><input type="email" id="courierEmail" required></label>
+              <label class="field"><span>Telefone</span><input type="text" id="courierPhone"></label>
+              <label class="field"><span>Empresa</span><select id="courierCompany"></select></label>
+              <div class="form-actions"><button type="submit" class="btn btn-primary">Criar estafeta</button></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Estafetas</h2></div>
+          <table class="table">
+            <thead><tr><th>Nome</th><th>Contacto</th><th>Empresa</th></tr></thead>
+            <tbody id="couriersTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Empresas</h2></div>
+          <table class="table">
+            <thead><tr><th>Nome</th><th>Estafetas</th><th></th></tr></thead>
+            <tbody id="companiesTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- Auditoria -->
       <section id="view-logs" class="view">
         <header class="page-header">
@@ -262,6 +369,47 @@
 
     </main>
   </div>
+
+  <dialog id="bikeEditDialog" class="dialog">
+    <h2>Editar e-bike</h2>
+    <form id="bikeEditForm" class="form">
+      <label class="field"><span>Modelo</span><input type="text" id="beModel" required></label>
+      <label class="field"><span>Carga (kg)</span><input type="number" id="beCargo" step="0.5" min="1" required></label>
+      <label class="field"><span>Bateria (%)</span><input type="number" id="beBattery" min="0" max="100" required></label>
+      <label class="field"><span>Hub</span><select id="beHub"></select></label>
+      <div class="form-actions">
+        <button type="button" class="btn" data-close="bikeEditDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="hubEditDialog" class="dialog">
+    <h2>Editar hub</h2>
+    <form id="hubEditForm" class="form">
+      <label class="field"><span>Nome</span><input type="text" id="heName" required></label>
+      <label class="field"><span>Morada</span><input type="text" id="heAddress" required></label>
+      <label class="field"><span>Capacidade</span><input type="number" id="heCapacity" min="1" required></label>
+      <label class="field"><span>Raio (m)</span><input type="number" id="heRadius" min="10" max="1000" step="5"></label>
+      <label class="field"><span>Latitude</span><input type="number" id="heLat" step="any" placeholder="Vazio = manter / obter da morada"></label>
+      <label class="field"><span>Longitude</span><input type="number" id="heLon" step="any" placeholder="Vazio = manter / obter da morada"></label>
+      <div class="form-actions">
+        <button type="button" class="btn" data-close="hubEditDialog">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="promptDialog" class="dialog">
+    <form method="dialog" class="form">
+      <h2 id="promptTitle"></h2>
+      <label class="field"><span id="promptLabel"></span><input type="text" id="promptInput" required></label>
+      <div class="form-actions">
+        <button value="cancel" class="btn" formnovalidate>Cancelar</button>
+        <button value="ok" class="btn btn-primary">Confirmar</button>
+      </div>
+    </form>
+  </dialog>
 
   <div id="toast" class="toast hidden"></div>
 
