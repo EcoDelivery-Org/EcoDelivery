@@ -1,6 +1,7 @@
 package pt.ua.tqs.ecodelivery.dto;
 
 import java.time.LocalDateTime;
+import pt.ua.tqs.ecodelivery.model.DefectCategory;
 import pt.ua.tqs.ecodelivery.model.TicketPriority;
 import pt.ua.tqs.ecodelivery.model.TicketStatus;
 
@@ -9,6 +10,7 @@ public record TicketResponse(
         Long id,
         Long bikeId,
         String description,
+        DefectCategory defectCategory,
         TicketPriority priority,
         TicketStatus status,
         String technician,

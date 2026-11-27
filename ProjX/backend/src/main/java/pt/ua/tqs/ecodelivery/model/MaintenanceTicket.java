@@ -26,6 +26,9 @@ public class MaintenanceTicket {
     private String description;
 
     @Enumerated(EnumType.STRING)
+    private DefectCategory defectCategory;
+
+    @Enumerated(EnumType.STRING)
     private TicketPriority priority;
 
     @Enumerated(EnumType.STRING)
@@ -63,6 +66,14 @@ public class MaintenanceTicket {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public DefectCategory getDefectCategory() {
+        return defectCategory;
+    }
+
+    public void setDefectCategory(DefectCategory defectCategory) {
+        this.defectCategory = defectCategory;
     }
 
     public TicketPriority getPriority() {

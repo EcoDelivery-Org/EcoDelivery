@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import pt.ua.tqs.ecodelivery.dto.BikeResponse;
 import pt.ua.tqs.ecodelivery.dto.FleetStatusResponse;
 import pt.ua.tqs.ecodelivery.dto.TicketResponse;
+import pt.ua.tqs.ecodelivery.maintenance.MaintenanceController;
 import pt.ua.tqs.ecodelivery.maintenance.MaintenanceService;
 import pt.ua.tqs.ecodelivery.service.BikeService;
 import pt.ua.tqs.ecodelivery.service.HubService;
@@ -37,7 +38,7 @@ public class OperatorController {
     /** GET /api/operator/tickets/open (Reserved for US03 / US06) */
     @GetMapping("/tickets/open")
     public List<TicketResponse> getOpenTickets() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return maintenanceService.findOpenTickets().stream().map(MaintenanceController::toResponse).toList();
     }
 
     /** POST /api/operator/bikes/{id}/activate (US02) */
