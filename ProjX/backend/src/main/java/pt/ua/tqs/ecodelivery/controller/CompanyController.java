@@ -4,7 +4,6 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,7 +20,6 @@ import pt.ua.tqs.ecodelivery.service.CompanyService;
 /** REST boundary for registered companies (BR7). */
 @RestController
 @RequestMapping("/api/companies")
-@CrossOrigin(origins = "*")
 public class CompanyController {
 
     private final CompanyService companyService;

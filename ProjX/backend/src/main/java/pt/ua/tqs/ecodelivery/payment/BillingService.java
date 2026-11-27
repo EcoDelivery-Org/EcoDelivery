@@ -53,7 +53,8 @@ public class BillingService {
         if (reservation.getPlannedEnd() == null || reservation.getActualEnd() == null) {
             return null;
         }
-        Duration overtime = Duration.between(reservation.getPlannedEnd(), reservation.getActualEnd());
+        Duration overtime = Duration.between(reservation.getPlannedEnd().atZone(clock.getZone()),
+                reservation.getActualEnd().atZone(clock.getZone()));
         BigDecimal fee = calculateOvertimeFee(overtime);
         if (fee.signum() <= 0) {
             return null;
