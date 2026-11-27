@@ -1,5 +1,6 @@
 package pt.ua.tqs.ecodelivery.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -7,18 +8,24 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /** An electric cargo bike of the fleet. */
 @Entity
-@Table(name = "e_bikes")
+@Table(name = "e_bikes", indexes = {
+        @Index(name = "idx_bike_status", columnList = "status"),
+        @Index(name = "idx_bike_hub", columnList = "currentHub_id")
+})
 public class Bike {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true, nullable = false)
     private String serialNumber;
 
     private String model;
@@ -31,6 +38,10 @@ public class Bike {
     private BikeStatus status;
 
     private boolean active;
+
+    /** Optimistic lock: prevents two concurrent reservations from both taking the same bike. */
+    @Version
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY)
     private Hub currentHub;

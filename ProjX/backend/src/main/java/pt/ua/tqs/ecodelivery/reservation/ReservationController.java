@@ -14,6 +14,7 @@ import pt.ua.tqs.ecodelivery.dto.ImmediateUseRequest;
 import pt.ua.tqs.ecodelivery.dto.ReservationRequest;
 import pt.ua.tqs.ecodelivery.dto.ReservationResponse;
 import pt.ua.tqs.ecodelivery.model.Reservation;
+import pt.ua.tqs.ecodelivery.model.ReservationStatus;
 
 /** REST boundary for reservations and usage sessions (epic: Reserva e Utilização). */
 @RestController
@@ -55,7 +56,7 @@ public class ReservationController {
     /** POST /api/reservations/{id}/end?endHubId= */
     @PostMapping("/{id}/end")
     public ReservationResponse endSession(@PathVariable Long id, @RequestParam Long endHubId) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return toResponse(sessionService.endSession(id, endHubId));
     }
 
     /** POST /api/reservations/{id}/cancel */
@@ -80,10 +81,13 @@ public class ReservationController {
         return ResponseEntity.ok(toResponse(sessionService.getReservation(id)));
     }
 
-    /** GET /api/reservations?courierId= */
+    /** GET /api/reservations?courierId=&status= (both optional) */
     @GetMapping
-    public ResponseEntity<List<ReservationResponse>> getCourierReservations(@RequestParam Long courierId) {
-        List<ReservationResponse> list = sessionService.findByCourier(courierId).stream()
+    public ResponseEntity<List<ReservationResponse>> getCourierReservations(
+            @RequestParam(required = false) Long courierId,
+            @RequestParam(required = false) ReservationStatus status) {
+        List<ReservationResponse> list = (status == null && courierId != null ? sessionService.findByCourier(courierId)
+                        : sessionService.findReservations(courierId, status)).stream()
                 .map(this::toResponse)
                 .toList();
         return ResponseEntity.ok(list);

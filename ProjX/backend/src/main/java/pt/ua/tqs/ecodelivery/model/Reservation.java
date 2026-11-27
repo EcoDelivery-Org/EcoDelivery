@@ -7,13 +7,18 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 
 /** A courier's reservation of a bike, which becomes a usage session when started. */
 @Entity
-@Table(name = "reservations")
+@Table(name = "reservations", indexes = {
+        @Index(name = "idx_reservation_bike_status", columnList = "bike_id, status"),
+        @Index(name = "idx_reservation_courier_status", columnList = "courier_id, status")
+})
 public class Reservation {
 
     @Id
@@ -42,6 +47,9 @@ public class Reservation {
 
     @Enumerated(EnumType.STRING)
     private ReservationStatus status;
+
+    @Version
+    private Long version;
 
     public Reservation() {
         // required by JPA

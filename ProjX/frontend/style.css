@@ -95,7 +95,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
 /* ---------- Stats ---------- */
-.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
 .stat {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 16px; display: flex; flex-direction: column; gap: 4px;
@@ -200,3 +200,13 @@ input:focus, select:focus { outline: none; border-color: var(--accent); box-shad
   .stats { grid-template-columns: repeat(2, 1fr); }
   .split, .form-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------- Dialogs ---------- */
+.dialog {
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 20px;
+  width: min(440px, 92vw); margin: auto; color: var(--text); background: var(--surface);
+}
+.dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+.dialog h2 { margin-bottom: 12px; }
+.table td.actions select { margin-right: 6px; }
+.overdue { color: var(--danger); font-weight: 500; }
