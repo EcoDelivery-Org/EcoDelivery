@@ -49,6 +49,7 @@
         <button class="nav-item" data-view="bikes">E-Bikes</button>
         <button class="nav-item" data-view="reservations">Reservas</button>
         <button class="nav-item" data-view="finder">Encontrar hub</button>
+        <button class="nav-item" data-view="maintenance">Manutenção</button>
         <button class="nav-item" data-view="logs">Auditoria</button>
       </nav>
 
@@ -235,6 +236,58 @@
               <tbody id="hubBikesTableBody"><tr><td colspan="3" class="empty">Selecione um hub.</td></tr></tbody>
             </table>
           </div>
+        </div>
+      </section>
+
+      <!-- Manutenção (US03) -->
+      <section id="view-maintenance" class="view">
+        <header class="page-header">
+          <div>
+            <h1>Manutenção</h1>
+            <p class="muted">Ordens de trabalho com prazo de SLA. A e-bike sai da disponibilidade e as reservas pendentes são canceladas.</p>
+          </div>
+          <button class="btn btn-primary" data-toggle="ticketFormCard">Novo ticket</button>
+        </header>
+
+        <div id="ticketFormCard" class="card hidden">
+          <form id="createTicketForm" class="form form-grid">
+            <label class="field field-wide"><span>E-Bike</span><select id="ticketBike" required></select></label>
+            <label class="field"><span>Categoria do defeito</span>
+              <select id="ticketCategory" required>
+                <option value="BATTERY">Bateria</option>
+                <option value="SENSOR">Sensor</option>
+                <option value="BRAKES">Travões</option>
+                <option value="TIRES">Pneus</option>
+                <option value="FRAME">Quadro</option>
+                <option value="ELECTRONICS">Eletrónica</option>
+                <option value="OTHER">Outro</option>
+              </select>
+            </label>
+            <label class="field"><span>Prioridade</span>
+              <select id="ticketPriority" required>
+                <option value="HIGH">Alta (SLA 4 h)</option>
+                <option value="MEDIUM" selected>Média (SLA 24 h)</option>
+                <option value="LOW">Baixa (SLA 72 h)</option>
+              </select>
+            </label>
+            <label class="field field-wide"><span>Descrição da avaria</span><input type="text" id="ticketDescription" placeholder="Bateria descarregada, falha no sensor" required></label>
+            <label class="field"><span>Tempo-alvo (horas)</span><input type="number" id="ticketTargetHours" min="1" placeholder="Por omissão da prioridade"></label>
+            <label class="field"><span>Técnico</span><input type="text" id="ticketTechnician" placeholder="Opcional"></label>
+            <div class="form-actions">
+              <button type="button" class="btn" data-toggle="ticketFormCard">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Criar ticket</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <input type="text" id="ticketTechnicianFilter" class="select-sm" placeholder="Fila do técnico…">
+          </div>
+          <table class="table">
+            <thead><tr><th>Ticket</th><th>Defeito</th><th>Prazo SLA</th><th>Estado</th><th>Técnico</th></tr></thead>
+            <tbody id="ticketsTableBody"></tbody>
+          </table>
         </div>
       </section>
 

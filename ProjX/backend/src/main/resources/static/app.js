@@ -6,7 +6,7 @@ const API_BASE = window.location.protocol === 'file:'
 const SESSION_KEY = 'ecodelivery.user';
 const REFRESH_MS = 15000;
 
-const state = { hubs: [], bikes: [], logs: [], reservations: [] };
+const state = { hubs: [], bikes: [], logs: [], reservations: [], tickets: [] };
 let refreshTimer = null;
 
 const $ = (id) => document.getElementById(id);
@@ -113,9 +113,11 @@ async function api(path, options = {}) {
 }
 
 async function refreshAll() {
-  await Promise.all([loadHubs(), loadBikes(), loadLogs(), loadReservations()]);
+  await Promise.all([loadHubs(), loadBikes(), loadLogs(), loadReservations(), loadTickets()]);
   renderBikes();          // depends on hubs
   renderReservations();   // depends on bikes
+  renderTickets();        // depends on bikes
+  renderTicketBikeSelect();
   renderStats();
 }
 
@@ -342,6 +344,68 @@ function renderReservations() {
   }).join('');
 }
 
+// ================= Maintenance tickets (US03) =================
+const TICKET_STATUS = {
+  OPEN:     { label: 'Aberto',     cls: 'badge-warning' },
+  ASSIGNED: { label: 'Atribuído',  cls: 'badge-info' },
+  CLOSED:   { label: 'Fechado',    cls: 'badge-success' }
+};
+
+const DEFECT_LABEL = {
+  BATTERY: 'Bateria', SENSOR: 'Sensor', BRAKES: 'Travões', TIRES: 'Pneus',
+  FRAME: 'Quadro', ELECTRONICS: 'Eletrónica', OTHER: 'Outro'
+};
+
+const PRIORITY_LABEL = { HIGH: 'Alta', MEDIUM: 'Média', LOW: 'Baixa' };
+
+// With a technician filled in, the backend returns that technician's queue (most urgent SLA first).
+function loadTickets() {
+  return safeLoad(async () => {
+    const technician = $('ticketTechnicianFilter').value.trim();
+    state.tickets = await api(technician
+      ? `/maintenance/tickets?technician=${encodeURIComponent(technician)}`
+      : '/maintenance/tickets');
+  }, 'tickets');
+}
+
+function renderTickets() {
+  const tbody = $('ticketsTableBody');
+  if (!state.tickets.length) return setEmpty(tbody, 5, 'Sem tickets de manutenção.');
+
+  const now = new Date();
+  tbody.innerHTML = state.tickets.map(t => {
+    const st = TICKET_STATUS[t.status] || { label: t.status, cls: '' };
+    const bike = state.bikes.find(b => b.id === t.bikeId);
+    const deadline = t.slaDeadline ? new Date(t.slaDeadline) : null;
+    const overdue = deadline && t.status !== 'CLOSED' && deadline < now;
+    const technician = t.status === 'CLOSED'
+      ? esc(t.technician || '—')
+      : `<div class="inline-assign">
+           <input type="text" class="select-sm" data-assign-input="${t.id}" value="${esc(t.technician || '')}" placeholder="Técnico">
+           <button class="btn btn-sm" data-assign="${t.id}">${t.technician ? 'Reatribuir' : 'Atribuir'}</button>
+         </div>`;
+    return `
+      <tr>
+        <td><strong>#${t.id}</strong> ${bike ? esc(bike.serialNumber) : `Bike #${t.bikeId}`}<div class="sub">${esc(t.description)}</div></td>
+        <td>${DEFECT_LABEL[t.defectCategory] || '—'}<div class="sub">Prioridade ${PRIORITY_LABEL[t.priority] || t.priority}</div></td>
+        <td class="${overdue ? 'low' : ''}">${deadline ? deadline.toLocaleString('pt-PT') : '—'}${overdue ? ' (em atraso)' : ''}</td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td>${technician}</td>
+      </tr>`;
+  }).join('');
+}
+
+function renderTicketBikeSelect() {
+  const select = $('ticketBike');
+  const current = select.value;
+  const candidates = state.bikes.filter(b => b.status !== 'RETIRED');
+  select.innerHTML = '<option value="">Selecione…</option>' + candidates.map(b => {
+    const st = BIKE_STATUS[b.status] || { label: b.status };
+    return `<option value="${b.id}">${esc(b.serialNumber)} · ${esc(b.model)} (${st.label})</option>`;
+  }).join('');
+  if (candidates.some(b => String(b.id) === current)) select.value = current;
+}
+
 // ================= Logs =================
 function loadLogs() {
   return safeLoad(async () => {
@@ -422,6 +486,26 @@ function setupForms() {
     const data = await api('/reservations', { method: 'POST', body: JSON.stringify(payload) });
     toast(`Reserva #${data.id} criada. A e-bike fica bloqueada 15 minutos.`, 'success');
   }, { reset: false });
+
+  handleForm('createTicketForm', async () => {
+    const hours = parseInt($('ticketTargetHours').value, 10);
+    const payload = {
+      bikeId: parseInt($('ticketBike').value, 10),
+      description: $('ticketDescription').value.trim(),
+      priority: $('ticketPriority').value,
+      defectCategory: $('ticketCategory').value,
+      targetResolutionHours: Number.isNaN(hours) ? null : hours,
+      technician: $('ticketTechnician').value.trim() || null
+    };
+    const ticket = await api('/maintenance/tickets', { method: 'POST', body: JSON.stringify(payload) });
+    toast(`Ticket #${ticket.id} criado. A e-bike passou a manutenção.`, 'success');
+    $('ticketFormCard').classList.add('hidden');
+  });
+
+  $('ticketTechnicianFilter').addEventListener('input', async () => {
+    await loadTickets();
+    renderTickets();
+  });
 
   $('hubSearchForm').addEventListener('submit', searchHubs);
 
@@ -504,6 +588,18 @@ function setupTableActions() {
         toast(`Reserva #${btn.dataset.resStart} iniciada.`, 'success');
       });
     }
+  });
+
+  $('ticketsTableBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-assign]');
+    if (!btn) return;
+    const id = btn.dataset.assign;
+    const technician = document.querySelector(`[data-assign-input="${id}"]`).value.trim();
+    if (!technician) return toast('Indique o técnico.', 'error');
+    runAction(async () => {
+      await api(`/maintenance/tickets/${id}/assign?technician=${encodeURIComponent(technician)}`, { method: 'PATCH' });
+      toast(`Ticket #${id} atribuído a ${technician}.`, 'success');
+    });
   });
 
   $('nearbyHubsTableBody').addEventListener('click', (e) => {
