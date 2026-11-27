@@ -200,3 +200,6 @@ input:focus, select:focus { outline: none; border-color: var(--accent); box-shad
   .stats { grid-template-columns: repeat(2, 1fr); }
   .split, .form-grid { grid-template-columns: 1fr; }
 }
+
+.inline-assign { display: flex; gap: 6px; align-items: center; }
+.inline-assign input { min-width: 130px; }
